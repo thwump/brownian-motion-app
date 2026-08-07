@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PointF
+import android.graphics.Typeface
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
@@ -33,6 +34,11 @@ class OverlayView @JvmOverloads constructor(
     var isOverlayEnabled: Boolean = true
     var isCalibrationMode: Boolean = false
     var onCalibrationComplete: ((distPx: Float) -> Unit)? = null
+
+    // Base calibration scale at 1.0x uncropped zoom (μm / px)
+    var baseScaleMicronsPerPixel: Float = 4.6875f
+    // Current digital zoom ratio (1.0x to 10.0x)
+    var currentZoomRatio: Float = 1.0f
 
     private var calibStartPoint: PointF? = null
     private var calibEndPoint: PointF? = null
@@ -66,6 +72,26 @@ class OverlayView @JvmOverloads constructor(
     private val calibTextPaint = Paint().apply {
         color = Color.WHITE
         textSize = 36f
+        isAntiAlias = true
+    }
+
+    private val scaleBarPaint = Paint().apply {
+        color = Color.WHITE
+        style = Paint.Style.STROKE
+        strokeWidth = 6f
+        isAntiAlias = true
+    }
+
+    private val scaleBarBgPaint = Paint().apply {
+        color = Color.parseColor("#b30f172a")
+        style = Paint.Style.FILL
+        isAntiAlias = true
+    }
+
+    private val scaleBarTextPaint = Paint().apply {
+        color = Color.parseColor("#00f2fe")
+        textSize = 32f
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         isAntiAlias = true
     }
 
@@ -123,7 +149,7 @@ class OverlayView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        // If overlay toggle is OFF, skip drawing particle rings and trajectory tracks
+        // Draw Overlays if enabled
         if (isOverlayEnabled) {
             // Draw Multi-Colored Particle Trajectories
             val tracksToDraw = tracksSnapshot
@@ -156,7 +182,7 @@ class OverlayView @JvmOverloads constructor(
             }
         }
 
-        // Draw Calibration Line (Always visible during calibration mode)
+        // Draw Calibration Drag Line
         val p1 = calibStartPoint
         val p2 = calibEndPoint
         if (p1 != null && p2 != null) {
@@ -167,5 +193,57 @@ class OverlayView @JvmOverloads constructor(
             val distPx = hypot(p2.x - p1.x, p2.y - p1.y)
             canvas.drawText(String.format("%.1f px", distPx), (p1.x + p2.x) / 2f + 20f, (p1.y + p2.y) / 2f - 20f, calibTextPaint)
         }
+
+        // Draw Dynamic Zoom-Aware Physical Scale Bar Widget (Bottom-Right)
+        drawDynamicScaleBar(canvas)
+    }
+
+    private fun drawDynamicScaleBar(canvas: Canvas) {
+        if (width <= 0 || height <= 0) return
+
+        // Effective scale accounts for digital zoom ratio (μm / px on canvas)
+        val effectiveScaleMicronsPerPx = (baseScaleMicronsPerPixel / Math.max(1.0f, currentZoomRatio)) * scaleX
+        if (effectiveScaleMicronsPerPx <= 0) return
+
+        // Target scale bar width on screen ~ 120 pixels
+        val targetMicrons = 120.0 * effectiveScaleMicronsPerPx
+
+        // Pick round physical length (1mm, 500μm, 100μm, 50μm, 10μm, 1μm)
+        val (barMicrons, labelStr) = when {
+            targetMicrons >= 800.0 -> Pair(1000.0, "1 mm")
+            targetMicrons >= 350.0 -> Pair(500.0, "500 μm")
+            targetMicrons >= 75.0  -> Pair(100.0, "100 μm")
+            targetMicrons >= 35.0  -> Pair(50.0, "50 μm")
+            targetMicrons >= 7.5   -> Pair(10.0, "10 μm")
+            else                   -> Pair(1.0, "1 μm")
+        }
+
+        val barPx = (barMicrons / effectiveScaleMicronsPerPx).toFloat()
+        if (barPx <= 5f || barPx > width * 0.8f) return
+
+        val margin = 30f
+        val barY = height - margin - 20f
+        val barStartX = width - margin - barPx - 20f
+        val barEndX = barStartX + barPx
+
+        // Background pill
+        val bgRectF = android.graphics.RectF(
+            barStartX - 20f,
+            barY - 45f,
+            barEndX + 20f,
+            height - margin + 10f
+        )
+        canvas.drawRoundRect(bgRectF, 12f, 12f, scaleBarBgPaint)
+
+        // Main horizontal bar
+        canvas.drawLine(barStartX, barY, barEndX, barY, scaleBarPaint)
+        // End caps
+        canvas.drawLine(barStartX, barY - 10f, barStartX, barY + 10f, scaleBarPaint)
+        canvas.drawLine(barEndX, barY - 10f, barEndX, barY + 10f, scaleBarPaint)
+
+        // Label text centered above bar
+        val textWidth = scaleBarTextPaint.measureText(labelStr)
+        val textX = barStartX + (barPx - textWidth) / 2f
+        canvas.drawText(labelStr, textX, barY - 12f, scaleBarTextPaint)
     }
 }

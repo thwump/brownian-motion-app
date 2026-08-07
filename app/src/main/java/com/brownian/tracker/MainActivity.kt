@@ -130,7 +130,7 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnCalibrate.setOnClickListener {
             binding.overlayView.isCalibrationMode = true
-            Toast.makeText(this, "Calibration: Drag a line on the video matching a known physical distance (e.g. 10 μm).", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Calibration: Drag a line on the video matching a known physical distance (e.g. 1000 μm for 1mm ruler mark).", Toast.LENGTH_LONG).show()
         }
 
         binding.switchShowOverlay.setOnCheckedChangeListener { _, isChecked ->
@@ -157,8 +157,17 @@ class MainActivity : AppCompatActivity() {
         binding.seekBarZoom.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 val zoom = 1.0f + (progress / 100.0f) * 9.0f // 1.0x to 10.0x
-                val fovMm = 4.0 / zoom
+                val baseScale = binding.overlayView.baseScaleMicronsPerPixel
+                val effectiveScale = baseScale / zoom
+                val fovMm = (effectiveScale * 1280.0) / 1000.0
+
                 binding.tvZoomSliderLabel.text = String.format("Digital Sensor Crop Zoom: %.1fx (FOV: ~%.2f mm)", zoom, fovMm)
+                binding.overlayView.currentZoomRatio = zoom
+
+                // Update physical engine scale for current zoom level
+                physics.scaleMicronsPerPixel = effectiveScale
+                simulator.scaleMicronsPerPixel = effectiveScale
+
                 if (::cameraManager.isInitialized) {
                     cameraManager.setZoomRatio(zoom)
                 }
@@ -205,18 +214,23 @@ class MainActivity : AppCompatActivity() {
         binding.overlayView.onCalibrationComplete = { distPx ->
             val builder = AlertDialog.Builder(this)
             builder.setTitle("Enter Calibration Distance")
-            builder.setMessage(String.format("Measured line: %.1f pixels.\nEnter physical distance in micrometers (μm):", distPx))
+            builder.setMessage(String.format("Measured line: %.1f pixels at 1.0x zoom.\nEnter physical distance in micrometers (e.g. 1000 μm for 1mm ruler):", distPx))
 
             val input = android.widget.EditText(this)
-            input.setText("10.0")
+            input.setText("1000.0") // Default to 1mm (1000 μm) ruler mark
             builder.setView(input)
 
-            builder.setPositiveButton("Set Scale") { _, _ ->
-                val microns = input.text.toString().toDoubleOrNull() ?: 10.0
-                val scale = (microns / distPx).toFloat()
-                physics.scaleMicronsPerPixel = scale
-                simulator.scaleMicronsPerPixel = scale
-                Toast.makeText(this, String.format("Calibration set! Scale: %.4f μm/px", scale), Toast.LENGTH_SHORT).show()
+            builder.setPositiveButton("Set Base Scale") { _, _ ->
+                val microns = input.text.toString().toDoubleOrNull() ?: 1000.0
+                val baseScale = (microns / distPx).toFloat()
+                
+                binding.overlayView.baseScaleMicronsPerPixel = baseScale
+                val currentZoom = binding.overlayView.currentZoomRatio
+                val effectiveScale = baseScale / currentZoom
+
+                physics.scaleMicronsPerPixel = effectiveScale
+                simulator.scaleMicronsPerPixel = effectiveScale
+                Toast.makeText(this, String.format("Base Scale set! 1.0x: %.3f μm/px | Effective (%.1fx): %.3f μm/px", baseScale, currentZoom, effectiveScale), Toast.LENGTH_LONG).show()
             }
             builder.setNegativeButton("Cancel", null)
             builder.show()
