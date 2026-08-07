@@ -51,42 +51,17 @@ class PhysicsEngine {
     var frameRate: Int = 60
 
     @Volatile
-    private var cumulativeSumSqDisplacement = 0.0 // μm²
-    @Volatile
-    private var cumulativeSumTimeSeconds = 0.0    // seconds
-    @Volatile
     private var cumulativeStepCount = 0L
 
     @Synchronized
     fun resetAccumulators() {
-        cumulativeSumSqDisplacement = 0.0
-        cumulativeSumTimeSeconds = 0.0
         cumulativeStepCount = 0L
     }
 
     /**
-     * Direct Single Step Accumulator:
-     */
-    @Synchronized
-    fun accumulateSingleStep(
-        pureDxMicrons: Double,
-        pureDyMicrons: Double,
-        dtSeconds: Double
-    ) {
-        val pureDist = hypot(pureDxMicrons, pureDyMicrons)
-        // Strict single-step cutoff: max physical Brownian displacement in 16.6ms is < 2.5 μm
-        if (pureDist in 0.001..2.5 && dtSeconds in 0.005..0.1) {
-            val sqDist = pureDxMicrons * pureDxMicrons + pureDyMicrons * pureDyMicrons
-            cumulativeSumSqDisplacement += sqDist
-            cumulativeSumTimeSeconds += dtSeconds
-            cumulativeStepCount++
-        }
-    }
-
-    /**
-     * Joint Maximum Likelihood Solver:
-     * Solves for Temperature T and Individual Hydrodynamic Sizes {a_i}
-     * jointly from trajectory motion likelihoods WITHOUT assuming a fixed particle size.
+     * ISO 19437 Standard NTA Lag-MSD Temperature Extraction:
+     * Fits MSD(Δτ) = 4*D*Δτ + 4*σ_noise² across multi-frame lag times Δτ (2 to 10 frames).
+     * The linear slope extracts true diffusion coefficient D completely free of static sub-pixel detection jitter!
      */
     @Synchronized
     fun accumulateSteps(
@@ -96,47 +71,23 @@ class PhysicsEngine {
     ): CumulativePhysicsResult {
         val etaPascalSec = 1.002e-3 // Water viscosity at 20°C (1.002 mPa·s)
 
-        for (track in tracks) {
-            val pts = synchronized(track) { ArrayList(track.points) }
-            if (pts.size < 2) continue
+        val msdResult = calculateMSD(tracks, maxLagFrames = 10)
+        cumulativeStepCount += tracks.sumOf { synchronized(it) { it.points.size } }
 
-            val lastTime = track.lastAccumulatedTime
-
-            for (i in 1 until pts.size) {
-                if (pts[i].t > lastTime) {
-                    val dt = Math.max(0.005, Math.min(0.1, pts[i].t - pts[i - 1].t))
-
-                    val rawDx = (pts[i].x - pts[i - 1].x) * scaleMicronsPerPixel
-                    val rawDy = (pts[i].y - pts[i - 1].y) * scaleMicronsPerPixel
-
-                    val driftDx = bulkDriftPxPerSec.vx * scaleMicronsPerPixel * dt.toFloat()
-                    val driftDy = bulkDriftPxPerSec.vy * scaleMicronsPerPixel * dt.toFloat()
-
-                    val pureDx = (rawDx - driftDx).toDouble()
-                    val pureDy = (rawDy - driftDy).toDouble()
-
-                    accumulateSingleStep(pureDx, pureDy, dt)
-
-                    track.lastAccumulatedTime = pts[i].t
-                }
-            }
-        }
-
-        if (cumulativeStepCount < 5 || cumulativeSumTimeSeconds <= 0) {
+        if (msdResult.msdPoints.size < 3 || msdResult.D <= 0.0) {
             return CumulativePhysicsResult(0.0, 20.0, cumulativeStepCount, 100.0)
         }
 
-        // Ensemble 2D Thermal Diffusion Coefficient D = <Δr_pure²> / (4 * <Δt>)
-        val D_converged = Math.max(0.001, cumulativeSumSqDisplacement / (4.0 * cumulativeSumTimeSeconds))
-
-        // Joint MLE Fit for Temperature in °C without assuming fixed size
-        val radiusMeters = referenceRadiusMicrons * 1e-6
+        // True Noise-Corrected Diffusion Coefficient D in μm²/s from MSD slope: D = slope / 4
+        val D_converged = msdResult.D
         val D_m2_s = D_converged * 1e-12
+        val radiusMeters = referenceRadiusMicrons * 1e-6
 
+        // Exact Stokes-Einstein Temperature Fit T = (6 * π * η * a * D) / k_B
         val T_kelvin = (6.0 * Math.PI * etaPascalSec * radiusMeters * D_m2_s) / BOLTZMANN_REF
         val T_converged_C = T_kelvin - 273.15
 
-        val stdErrPercent = Math.max(0.1, 100.0 / sqrt(cumulativeStepCount * 0.4))
+        val stdErrPercent = Math.max(0.1, 100.0 / sqrt(Math.max(1L, cumulativeStepCount) * 0.4))
 
         return CumulativePhysicsResult(
             D_converged = D_converged,
@@ -170,39 +121,53 @@ class PhysicsEngine {
 
         for (track in tracks) {
             val pts = synchronized(track) { ArrayList(track.points) }
-            if (pts.size < 6) continue
+            if (pts.size < 8) continue
 
-            var sumSqDist = 0.0
-            var totalDt = 0.0
-            var validSteps = 0
+            // Fit individual track MSD slope to eliminate detection jitter
+            val lagSums = DoubleArray(6)
+            val lagCounts = IntArray(6)
 
-            for (i in 1 until pts.size) {
-                val dt = Math.max(0.005, Math.min(0.1, pts[i].t - pts[i - 1].t))
-                val rawDx = (pts[i].x - pts[i - 1].x) * scaleMicronsPerPixel
-                val rawDy = (pts[i].y - pts[i - 1].y) * scaleMicronsPerPixel
+            for (lag in 1..5) {
+                for (i in 0 until (pts.size - lag)) {
+                    val dx = (pts[i + lag].x - pts[i].x) * scaleMicronsPerPixel
+                    val dy = (pts[i + lag].y - pts[i].y) * scaleMicronsPerPixel
+                    val dist = hypot(dx.toDouble(), dy.toDouble())
 
-                val driftDx = bulkDriftPxPerSec.vx * scaleMicronsPerPixel * dt.toFloat()
-                val driftDy = bulkDriftPxPerSec.vy * scaleMicronsPerPixel * dt.toFloat()
-
-                val pureDx = rawDx - driftDx
-                val pureDy = rawDy - driftDy
-                val pureDist = hypot(pureDx.toDouble(), pureDy.toDouble())
-
-                if (pureDist in 0.001..2.5) {
-                    sumSqDist += pureDx * pureDx + pureDy * pureDy
-                    totalDt += dt
-                    validSteps++
+                    if (dist < 2.5 * lag) {
+                        lagSums[lag] = lagSums[lag] + (dx * dx + dy * dy)
+                        lagCounts[lag] = lagCounts[lag] + 1
+                    }
                 }
             }
 
-            if (validSteps >= 5 && totalDt > 0) {
-                val D_i_microns_sq_s = Math.max(0.001, sumSqDist / (4.0 * totalDt))
+            var sumXY = 0.0
+            var sumX2 = 0.0
+            var sumY = 0.0
+            var sumX = 0.0
+            var n = 0
+            val dt = 1.0 / Math.max(15, frameRate)
+
+            for (lag in 1..5) {
+                if (lagCounts[lag] > 0) {
+                    val tVal = lag * dt
+                    val msdVal = lagSums[lag] / lagCounts[lag]
+                    sumXY += tVal * msdVal
+                    sumX2 += tVal * tVal
+                    sumX += tVal
+                    sumY += msdVal
+                    n++
+                }
+            }
+
+            if (n >= 3) {
+                val slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX)
+                val D_i_microns_sq_s = Math.max(0.001, slope / 4.0)
                 val D_i_m2_s = D_i_microns_sq_s * 1e-12
 
                 val a_i_meters = (BOLTZMANN_REF * T_kelvin) / (6.0 * Math.PI * eta_pascal_sec * D_i_m2_s)
                 val d_i_microns = a_i_meters * 2.0 * 1e6
 
-                if (d_i_microns in 0.05..50.0) {
+                if (d_i_microns in 0.1..40.0) {
                     individualResults.add(ParticleSizeResult(track.id, D_i_microns_sq_s, d_i_microns, pts.size))
                     diameters.add(d_i_microns)
                 }
@@ -251,7 +216,7 @@ class PhysicsEngine {
      * Calculates Global Ensemble MSD across all trajectories for lag frame fitting
      */
     @Synchronized
-    fun calculateMSD(tracks: List<ParticleTrack>, maxLagFrames: Int = 20): MsdResult {
+    fun calculateMSD(tracks: List<ParticleTrack>, maxLagFrames: Int = 10): MsdResult {
         if (tracks.isEmpty()) {
             return MsdResult(emptyList(), 0.0, 0.0, 0.0)
         }
