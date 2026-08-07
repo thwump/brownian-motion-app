@@ -1,0 +1,82 @@
+package com.brownian.tracker.ui
+
+import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.util.AttributeSet
+import android.view.View
+import com.brownian.tracker.detector.DetectedParticle
+import com.brownian.tracker.tracker.ParticleTrack
+
+class OverlayView @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null,
+    defStyleAttr: Int = 0
+) : View(context, attrs, defStyleAttr) {
+
+    private var particles: List<DetectedParticle> = emptyList()
+    private var tracks: List<ParticleTrack> = emptyList()
+    private var scaleX: Float = 1.0f
+    private var scaleY: Float = 1.0f
+
+    private val detectionPaint = Paint().apply {
+        color = Color.parseColor("#00f2fe")
+        style = Paint.Style.STROKE
+        strokeWidth = 4f
+        isAntiAlias = true
+    }
+
+    private val centerPaint = Paint().apply {
+        color = Color.parseColor("#ff007f")
+        style = Paint.Style.FILL
+        isAntiAlias = true
+    }
+
+    private val trackPaint = Paint().apply {
+        color = Color.parseColor("#00f2fe")
+        style = Paint.Style.STROKE
+        strokeWidth = 5f
+        isAntiAlias = true
+    }
+
+    fun updateData(newParticles: List<DetectedParticle>, newTracks: List<ParticleTrack>, procWidth: Int, procHeight: Int) {
+        this.particles = newParticles
+        this.tracks = newTracks
+        if (procWidth > 0 && procHeight > 0 && width > 0 && height > 0) {
+            this.scaleX = width.toFloat() / procWidth.toFloat()
+            this.scaleY = height.toFloat() / procHeight.toFloat()
+        }
+        postInvalidate()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+
+        // Draw Trajectory Lines
+        for (track in tracks) {
+            val pts = track.points
+            if (pts.size < 2) continue
+
+            for (i in 1 until pts.size) {
+                val p1 = pts[i - 1]
+                val p2 = pts[i]
+                canvas.drawLine(
+                    p1.x * scaleX, p1.y * scaleY,
+                    p2.x * scaleX, p2.y * scaleY,
+                    trackPaint
+                )
+            }
+        }
+
+        // Draw Particle Detection Bounding Rings
+        for (particle in particles) {
+            val cx = particle.x * scaleX
+            val cy = particle.y * scaleY
+            val r = Math.max(12f, particle.radius * ((scaleX + scaleY) / 2f))
+
+            canvas.drawCircle(cx, cy, r, detectionPaint)
+            canvas.drawCircle(cx, cy, 5f, centerPaint)
+        }
+    }
+}
