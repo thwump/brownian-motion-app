@@ -475,8 +475,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun processAnalytics(tracks: List<com.brownian.tracker.tracker.ParticleTrack>) {
         val isPoly = binding.switchMilkMode.isChecked
-        // Use exact harmonic mean radius for milk (0.7704 μm) or exact particle radius
-        val refRadius = if (isPoly) 0.7704 else simulator.particleRadiusMicrons
+        
+        // Pass EXACT Harmonic Mean Radius of current particles when in polydisperse milk mode
+        val refRadius = if (isPoly) simulator.getHarmonicMeanRadiusMicrons() else simulator.particleRadiusMicrons
+        val displayMeanDiam = if (isPoly) simulator.getArithmeticMeanDiameterMicrons() else (simulator.particleRadiusMicrons * 2.0)
 
         // Synchronize scaleMicronsPerPixel and viscosityMpaSec between simulator and physics engine
         physics.scaleMicronsPerPixel = simulator.scaleMicronsPerPixel
@@ -494,7 +496,7 @@ class MainActivity : AppCompatActivity() {
         val cumul = physics.accumulateSteps(tracks, driftPxPerSec, refRadius, currentViscosity)
 
         runOnUiThread {
-            updateUI(cumul.D_converged, cumul.T_converged_C, if (isPoly) 1.54 else (simulator.particleRadiusMicrons * 2), cumul.totalSteps, cumul.stdErrPercent)
+            updateUI(cumul.D_converged, cumul.T_converged_C, displayMeanDiam, cumul.totalSteps, cumul.stdErrPercent)
             if (activeMode == "analytics") {
                 updateAnalyticsDashboard()
             }

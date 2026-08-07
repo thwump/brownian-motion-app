@@ -23,7 +23,7 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
     
     // High-Mag Microscope Scale: 0.05 μm/px (Allows 1.7 px/frame step resolution for exact convergence)
     var scaleMicronsPerPixel: Float = 0.05f
-    var isPolydisperse: Boolean = false // Monodisperse by default for exact 20.0°C benchmark convergence
+    var isPolydisperse: Boolean = false // Monodisperse by default
 
     val particles = mutableListOf<SimulatedParticle>()
     private val random = java.util.Random()
@@ -39,6 +39,24 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
         }
     }
 
+    /**
+     * Exact Harmonic Mean Radius r_harm = N / Σ(1 / r_i)
+     * Crucial for exact ensemble temperature convergence in polydisperse milk mode!
+     */
+    fun getHarmonicMeanRadiusMicrons(): Double {
+        if (particles.isEmpty()) return particleRadiusMicrons
+        val sumInv = particles.sumOf { 1.0 / it.radiusMicrons }
+        return particles.size / sumInv
+    }
+
+    /**
+     * Arithmetic Mean Diameter d_mean = 2 * (1 / N) * Σ r_i
+     */
+    fun getArithmeticMeanDiameterMicrons(): Double {
+        if (particles.isEmpty()) return particleRadiusMicrons * 2.0
+        return particles.map { it.radiusMicrons * 2.0 }.average()
+    }
+
     private fun createRandomParticle(): SimulatedParticle {
         var rMicrons = particleRadiusMicrons
 
@@ -46,7 +64,7 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
             val u1 = Math.max(1e-6, random.nextDouble())
             val u2 = Math.max(1e-6, random.nextDouble())
             val z = sqrt(-2.0 * ln(u1)) * cos(2.0 * PI * u2)
-            // Fat globules: 0.8 μm to 3.5 μm
+            // Milk fat globule distribution: 0.8 μm to 3.5 μm
             rMicrons = Math.max(0.8, Math.min(3.5, exp(ln(1.5) + 0.4 * z)))
         }
 
