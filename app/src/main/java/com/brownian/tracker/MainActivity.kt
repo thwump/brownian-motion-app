@@ -54,9 +54,10 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        simulator = PhysicsSimulator(640, 480)
+        // Full HD High-Resolution 1920x1080 Processing & Simulation Buffer
+        simulator = PhysicsSimulator(1920, 1080)
         videoLoader = VideoFileLoader(this)
-        simBitmap = Bitmap.createBitmap(640, 480, Bitmap.Config.ARGB_8888)
+        simBitmap = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
 
         setupNavigationTabs()
         setupUIControls()
@@ -91,7 +92,7 @@ class MainActivity : AppCompatActivity() {
         binding.simCanvas.visibility = if (mode == "sim") View.VISIBLE else View.GONE
 
         if (mode == "camera") {
-            binding.tvStatusHud.text = "Tracking • Live CameraX (Main 1x Rear Lens Locked)"
+            binding.tvStatusHud.text = "Tracking • Live CameraX Full HD (1920x1080)"
             stopSimulationLoop()
             if (allPermissionsGranted()) {
                 startCameraX()
@@ -99,7 +100,7 @@ class MainActivity : AppCompatActivity() {
                 ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
             }
         } else if (mode == "sim") {
-            binding.tvStatusHud.text = "Tracking • Physics Simulator Active"
+            binding.tvStatusHud.text = "Tracking • Physics Simulator Full HD Active"
             detector.invert = true
             if (::cameraManager.isInitialized) cameraManager.shutdown()
             startSimulationLoop()

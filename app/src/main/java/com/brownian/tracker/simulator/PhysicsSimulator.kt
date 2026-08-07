@@ -10,14 +10,14 @@ data class SimulatedParticle(
     val radiusMicrons: Double
 )
 
-class PhysicsSimulator(var width: Int = 640, var height: Int = 480) {
+class PhysicsSimulator(var width: Int = 1920, var height: Int = 1080) {
     var particleRadiusMicrons: Double = 1.0
     var viscosityMpaSec: Double = 1.0
     var tempCelsius: Double = 20.0
     var driftMicronsPerSec: Double = 0.5
-    var numParticles: Int = 40
-    // Field of view: ~6mm x 4mm across 640x480 pixels => ~9.375 μm/px scale
-    var scaleMicronsPerPixel: Float = 9.375f
+    var numParticles: Int = 50
+    // High-Resolution 1920x1080 scale for 6mm x 3.375mm optical FOV: 6000 μm / 1920 px = 3.125 μm/px
+    var scaleMicronsPerPixel: Float = 3.125f
     var isPolydisperse: Boolean = true
 
     val particles = mutableListOf<SimulatedParticle>()
@@ -46,8 +46,8 @@ class PhysicsSimulator(var width: Int = 640, var height: Int = 480) {
         }
 
         return SimulatedParticle(
-            x = (random.nextFloat() * (width - 40) + 20),
-            y = (random.nextFloat() * (height - 40) + 20),
+            x = (random.nextFloat() * (width - 60) + 30),
+            y = (random.nextFloat() * (height - 60) + 30),
             radiusMicrons = rMicrons
         )
     }
@@ -77,7 +77,7 @@ class PhysicsSimulator(var width: Int = 640, var height: Int = 480) {
             p.y += driftDy + sigma * z1
 
             // Respawns new particle when leaving viewport (eliminates boundary teleports)
-            if (p.x < 5f || p.x > width - 5f || p.y < 5f || p.y > height - 5f) {
+            if (p.x < 10f || p.x > width - 10f || p.y < 10f || p.y > height - 10f) {
                 particles[i] = createRandomParticle()
             }
         }
@@ -104,17 +104,18 @@ class PhysicsSimulator(var width: Int = 640, var height: Int = 480) {
             isAntiAlias = true
         }
 
-        // Diffraction-limited point spread function (PSF) rendering for 4mm x 6mm FOV
+        // Full HD 1920x1080 diffraction-limited Point Spread Function (PSF) rendering
         for (p in particles) {
-            // Optical diffraction Airy disk radius (1.5 to 3.5 pixels)
-            val diffractionRadiusPx = Math.max(2.0f, (p.radiusMicrons / 0.8f).toFloat())
+            // At 3.125 μm/px, a 1μm to 3μm radius particle spans 4 to 12 pixels across!
+            val geometricRadiusPx = (p.radiusMicrons / scaleMicronsPerPixel).toFloat()
+            val opticalPsfRadiusPx = Math.max(4.0f, geometricRadiusPx + 2.5f)
 
             // Diffraction halo ring
-            canvas.drawCircle(p.x, p.y, diffractionRadiusPx * 1.6f, haloPaint)
+            canvas.drawCircle(p.x, p.y, opticalPsfRadiusPx * 1.5f, haloPaint)
 
             // Dark core spot
             corePaint.color = Color.parseColor("#0f172a")
-            canvas.drawCircle(p.x, p.y, diffractionRadiusPx, corePaint)
+            canvas.drawCircle(p.x, p.y, opticalPsfRadiusPx, corePaint)
         }
     }
 }

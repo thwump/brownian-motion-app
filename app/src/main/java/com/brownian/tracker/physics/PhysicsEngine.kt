@@ -46,8 +46,8 @@ data class PolydisperseSizingResult(
 )
 
 class PhysicsEngine {
-    // Default scale matching 4mm x 6mm FOV across 640x480 resolution (6000 μm / 640 px = 9.375 μm/px)
-    var scaleMicronsPerPixel: Float = 9.375f
+    // Default scale matching Full HD 1920x1080 resolution across 6mm x 3.375mm optical FOV (6000 μm / 1920 px = 3.125 μm/px)
+    var scaleMicronsPerPixel: Float = 3.125f
     var frameRate: Int = 60
 
     @Volatile
@@ -74,7 +74,6 @@ class PhysicsEngine {
         dtSeconds: Double
     ) {
         val pureDist = hypot(pureDxMicrons, pureDyMicrons)
-        // Scaled physical step threshold for 4x6mm optical field of view
         if (pureDist in 0.001..25.0 && dtSeconds in 0.005..0.1) {
             val sqDist = pureDxMicrons * pureDxMicrons + pureDyMicrons * pureDyMicrons
             cumulativeSumSqDisplacement += sqDist
@@ -196,11 +195,9 @@ class PhysicsEngine {
             }
 
             if (validSteps >= 5 && totalDt > 0) {
-                // Individual trajectory diffusion coefficient D_i from position variance
                 val D_i_microns_sq_s = Math.max(0.001, sumSqDist / (4.0 * totalDt))
                 val D_i_m2_s = D_i_microns_sq_s * 1e-12
 
-                // Hydrodynamic Radius a_i from Einstein-Smoluchowski (NTA)
                 val a_i_meters = (BOLTZMANN_REF * T_kelvin) / (6.0 * Math.PI * eta_pascal_sec * D_i_m2_s)
                 val d_i_microns = a_i_meters * 2.0 * 1e6
 
