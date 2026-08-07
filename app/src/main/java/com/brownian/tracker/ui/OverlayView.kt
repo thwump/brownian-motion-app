@@ -10,7 +10,12 @@ import android.view.MotionEvent
 import android.view.View
 import com.brownian.tracker.detector.DetectedParticle
 import com.brownian.tracker.tracker.ParticleTrack
+import com.brownian.tracker.tracker.TrackPoint
 import kotlin.math.hypot
+
+data class RenderTrackSnapshot(
+    val points: List<TrackPoint>
+)
 
 class OverlayView @JvmOverloads constructor(
     context: Context,
@@ -18,8 +23,8 @@ class OverlayView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
-    private var particles: List<DetectedParticle> = emptyList()
-    private var tracks: List<ParticleTrack> = emptyList()
+    private var particlesSnapshot: List<DetectedParticle> = emptyList()
+    private var tracksSnapshot: List<RenderTrackSnapshot> = emptyList()
     private var scaleX: Float = 1.0f
     private var scaleY: Float = 1.0f
 
@@ -63,8 +68,15 @@ class OverlayView @JvmOverloads constructor(
     }
 
     fun updateData(newParticles: List<DetectedParticle>, newTracks: List<ParticleTrack>, procWidth: Int, procHeight: Int) {
-        this.particles = newParticles
-        this.tracks = newTracks
+        // Defensive thread-safe deep copy snapshot
+        this.particlesSnapshot = ArrayList(newParticles)
+        this.tracksSnapshot = newTracks.map { track ->
+            val ptsCopy = synchronized(track) {
+                ArrayList(track.points)
+            }
+            RenderTrackSnapshot(ptsCopy)
+        }
+
         if (procWidth > 0 && procHeight > 0 && width > 0 && height > 0) {
             this.scaleX = width.toFloat() / procWidth.toFloat()
             this.scaleY = height.toFloat() / procHeight.toFloat()
@@ -109,8 +121,9 @@ class OverlayView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        // Draw Trajectory Lines
-        for (track in tracks) {
+        // Safely draw immutable snapshots of Trajectory Lines
+        val tracksToDraw = tracksSnapshot
+        for (track in tracksToDraw) {
             val pts = track.points
             if (pts.size < 2) continue
 
@@ -125,8 +138,9 @@ class OverlayView @JvmOverloads constructor(
             }
         }
 
-        // Draw Particle Detection Bounding Rings
-        for (particle in particles) {
+        // Safely draw Particle Detection Bounding Rings
+        val particlesToDraw = particlesSnapshot
+        for (particle in particlesToDraw) {
             val cx = particle.x * scaleX
             val cy = particle.y * scaleY
             val r = Math.max(12f, particle.radius * ((scaleX + scaleY) / 2f))

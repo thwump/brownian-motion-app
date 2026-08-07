@@ -27,9 +27,9 @@ class ParticleTracker {
     var bulkDriftVector: Vector2D = Vector2D(0f, 0f)
         private set
 
+    @Synchronized
     fun update(detections: List<DetectedParticle>, nowSec: Double): List<ParticleTrack> {
         val assignedDetections = BooleanArray(detections.size)
-        val assignedTracks = BooleanArray(activeTracks.size)
         var driftSumX = 0f
         var driftSumY = 0f
         var driftCount = 0
@@ -37,7 +37,7 @@ class ParticleTracker {
         // Greedy Nearest Neighbor Matching
         for (i in activeTracks.indices) {
             val track = activeTracks[i]
-            val lastPt = track.points.lastOrNull() ?: continue
+            val lastPt = synchronized(track) { track.points.lastOrNull() } ?: continue
 
             var minDist = Float.MAX_VALUE
             var bestIdx = -1
@@ -62,13 +62,14 @@ class ParticleTracker {
                 driftSumY += dy
                 driftCount++
 
-                track.points.add(TrackPoint(det.x, det.y, nowSec))
-                if (track.points.size > maxTrackPoints) {
-                    track.points.removeAt(0)
+                synchronized(track) {
+                    track.points.add(TrackPoint(det.x, det.y, nowSec))
+                    if (track.points.size > maxTrackPoints) {
+                        track.points.removeAt(0)
+                    }
                 }
 
                 assignedDetections[bestIdx] = true
-                assignedTracks[i] = true
             }
         }
 
@@ -84,7 +85,9 @@ class ParticleTracker {
             if (!assignedDetections[j]) {
                 val det = detections[j]
                 val newTrack = ParticleTrack(id = nextId++)
-                newTrack.points.add(TrackPoint(det.x, det.y, nowSec))
+                synchronized(newTrack) {
+                    newTrack.points.add(TrackPoint(det.x, det.y, nowSec))
+                }
                 activeTracks.add(newTrack)
             }
         }
@@ -93,9 +96,10 @@ class ParticleTracker {
         val iterator = activeTracks.iterator()
         while (iterator.hasNext()) {
             val track = iterator.next()
-            val lastPt = track.points.lastOrNull()
+            val lastPt = synchronized(track) { track.points.lastOrNull() }
             if (lastPt != null && (nowSec - lastPt.t) > 0.5) {
-                if (track.points.size >= 10) {
+                val pSize = synchronized(track) { track.points.size }
+                if (pSize >= 10) {
                     completedTracks.add(track)
                     if (completedTracks.size > maxCompletedTracks) {
                         completedTracks.removeAt(0)
@@ -108,6 +112,7 @@ class ParticleTracker {
         return activeTracks
     }
 
+    @Synchronized
     fun getAllTracks(): List<ParticleTrack> {
         val result = mutableListOf<ParticleTrack>()
         result.addAll(activeTracks)
@@ -115,6 +120,7 @@ class ParticleTracker {
         return result
     }
 
+    @Synchronized
     fun reset() {
         activeTracks.clear()
         completedTracks.clear()
