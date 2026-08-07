@@ -74,7 +74,9 @@ class PhysicsEngine {
         dtSeconds: Double
     ) {
         val pureDist = hypot(pureDxMicrons, pureDyMicrons)
-        if (pureDist in 0.001..25.0 && dtSeconds in 0.005..0.1) {
+        // Strict single-step cutoff: max physical Brownian displacement in 16.6ms is < 2.5 μm
+        // Any step > 2.5 μm is a particle respawn jump or tracking swap and MUST be discarded!
+        if (pureDist in 0.001..2.5 && dtSeconds in 0.005..0.1) {
             val sqDist = pureDxMicrons * pureDxMicrons + pureDyMicrons * pureDyMicrons
             cumulativeSumSqDisplacement += sqDist
             cumulativeSumTimeSeconds += dtSeconds
@@ -187,7 +189,7 @@ class PhysicsEngine {
                 val pureDy = rawDy - driftDy
                 val pureDist = hypot(pureDx.toDouble(), pureDy.toDouble())
 
-                if (pureDist < 25.0) {
+                if (pureDist in 0.001..2.5) {
                     sumSqDist += pureDx * pureDx + pureDy * pureDy
                     totalDt += dt
                     validSteps++
@@ -269,7 +271,7 @@ class PhysicsEngine {
                     val dy = (pts[i + lag].y - pts[i].y) * scaleMicronsPerPixel
                     val dist = hypot(dx.toDouble(), dy.toDouble())
 
-                    if (dist < 25.0 * lag) {
+                    if (dist < 2.5 * lag) {
                         val sqDist = dx * dx + dy * dy
                         lagSums[lag] = lagSums[lag] + sqDist
                         lagCounts[lag] = lagCounts[lag] + 1
