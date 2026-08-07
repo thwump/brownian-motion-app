@@ -7,7 +7,10 @@ import kotlin.math.*
 data class SimulatedParticle(
     var x: Double,
     var y: Double,
-    val radiusMicrons: Double
+    val radiusMicrons: Double,
+    val trailX: FloatArray = FloatArray(30),
+    val trailY: FloatArray = FloatArray(30),
+    var trailHead: Int = 0
 )
 
 class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
@@ -15,11 +18,10 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
     var viscosityMpaSec: Double = 1.0
     var tempCelsius: Double = 20.0
     var driftMicronsPerSec: Double = 0.5
-    var numParticles: Int = 30
+    var numParticles: Int = 25
     
-    // Pixel 9 + 200x Lens + 10x Digital Zoom scale:
-    // 400 μm FOV across 1280 px canvas => 0.3125 μm/px scale!
-    var scaleMicronsPerPixel: Float = 0.3125f
+    // Scale controls visual optical magnification (0.15 μm/px scale -> High-Mag FOV)
+    var scaleMicronsPerPixel: Float = 0.15f
     var isPolydisperse: Boolean = true
 
     val particles = mutableListOf<SimulatedParticle>()
@@ -43,15 +45,18 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
             val u1 = Math.max(1e-6, random.nextDouble())
             val u2 = Math.max(1e-6, random.nextDouble())
             val z = sqrt(-2.0 * ln(u1)) * cos(2.0 * PI * u2)
-            // Fat globules: 0.5 μm to 4.5 μm
-            rMicrons = Math.max(0.5, Math.min(4.5, exp(ln(1.5) + 0.5 * z)))
+            // Fat globules: 0.8 μm to 3.5 μm
+            rMicrons = Math.max(0.8, Math.min(3.5, exp(ln(1.5) + 0.4 * z)))
         }
 
-        return SimulatedParticle(
-            x = (random.nextDouble() * (width - 120) + 60.0),
-            y = (random.nextDouble() * (height - 120) + 60.0),
-            radiusMicrons = rMicrons
-        )
+        val px = (random.nextDouble() * (width - 120) + 60.0)
+        val py = (random.nextDouble() * (height - 120) + 60.0)
+        val p = SimulatedParticle(x = px, y = py, radiusMicrons = rMicrons)
+        for (k in 0 until 30) {
+            p.trailX[k] = px.toFloat()
+            p.trailY[k] = py.toFloat()
+        }
+        return p
     }
 
     fun update(dtSeconds: Double) {
@@ -70,6 +75,7 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
             val D_microns_sq_s = D_m2_s * 1e12
             val D_px_sq_s = D_microns_sq_s / (scaleMicronsPerPixel * scaleMicronsPerPixel)
             
+            // Thermal Brownian step size σ_px
             val sigma = sqrt(2.0 * D_px_sq_s * dtSeconds)
 
             val u1 = Math.max(1e-6, random.nextDouble())
@@ -79,9 +85,14 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
 
             p.x += driftDx + sigma * z0
             p.y += driftDy + sigma * z1
+
+            // Record trajectory trail history
+            p.trailHead = (p.trailHead + 1) % 30
+            p.trailX[p.trailHead] = p.x.toFloat()
+            p.trailY[p.trailHead] = p.y.toFloat()
         }
 
-        // 2. Hard-Sphere Elastic Repulsion (Prevents Particle Clumping & Overlap Jumps)
+        // 2. Hard-Sphere Elastic Repulsion (Prevents Particle Clumping)
         for (i in 0 until particles.size) {
             for (j in i + 1 until particles.size) {
                 val p1 = particles[i]
@@ -91,7 +102,7 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
                 val dy = p2.y - p1.y
                 val dist = hypot(dx, dy)
 
-                val minDistPx = Math.max(12.0, ((p1.radiusMicrons + p2.radiusMicrons) / scaleMicronsPerPixel))
+                val minDistPx = Math.max(16.0, ((p1.radiusMicrons + p2.radiusMicrons) / scaleMicronsPerPixel))
 
                 if (dist < minDistPx && dist > 0.001) {
                     val overlap = minDistPx - dist
@@ -118,35 +129,51 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
     fun renderToBitmap(bitmap: Bitmap) {
         val canvas = Canvas(bitmap)
 
-        // Bright slate background
+        // Clean dark slate background for high-contrast visibility
         val bgPaint = Paint().apply {
-            color = Color.parseColor("#f1f5f9")
+            color = Color.parseColor("#0f172a")
             style = Paint.Style.FILL
         }
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
 
         val haloPaint = Paint().apply {
-            color = Color.argb(180, 255, 255, 255)
+            color = Color.argb(120, 56, 189, 248)
             style = Paint.Style.FILL
             isAntiAlias = true
         }
 
         val corePaint = Paint().apply {
-            color = Color.parseColor("#020617")
+            color = Color.parseColor("#f8fafc")
             style = Paint.Style.FILL
             isAntiAlias = true
         }
 
+        val trailPaint = Paint().apply {
+            color = Color.argb(180, 0, 242, 254)
+            style = Paint.Style.STROKE
+            strokeWidth = 3.5f
+            isAntiAlias = true
+        }
+
         for (p in particles) {
-            // Realistic optical PSF diffraction Airy spot size
-            val rPx = Math.max(5.0f, (p.radiusMicrons / scaleMicronsPerPixel).toFloat() * 1.5f)
             val px = p.x.toFloat()
             val py = p.y.toFloat()
+            val rPx = Math.max(8.0f, (p.radiusMicrons / scaleMicronsPerPixel).toFloat())
 
-            // Outer diffraction halo
-            canvas.drawCircle(px, py, rPx * 1.4f, haloPaint)
+            // Render glowing thermal motion trajectory tail directly in simulator
+            val head = p.trailHead
+            for (k in 1 until 30) {
+                val idx1 = (head - k + 30) % 30
+                val idx2 = (head - k + 1 + 30) % 30
+                val alpha = (255 * (30 - k) / 30)
+                trailPaint.color = Color.argb(alpha, 0, 242, 254)
+                canvas.drawLine(p.trailX[idx1], p.trailY[idx1], p.trailX[idx2], p.trailY[idx2], trailPaint)
+            }
 
-            // Crisp dark particle core
+            // Outer glowing diffraction halo
+            canvas.drawCircle(px, py, rPx * 1.5f, haloPaint)
+
+            // Bright crisp particle core
             canvas.drawCircle(px, py, rPx, corePaint)
         }
     }
