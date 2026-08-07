@@ -6,6 +6,8 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.View
 import android.widget.SeekBar
 import android.widget.Toast
@@ -45,6 +47,7 @@ class MainActivity : AppCompatActivity() {
     private var frameCounter = 0
     private var simScheduler: ScheduledExecutorService? = null
     private var simBitmap: Bitmap? = null
+    private var isUpdatingFromCode = false
 
     private val videoPickerLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { loadAndProcessVideoFile(it) }
@@ -60,12 +63,11 @@ class MainActivity : AppCompatActivity() {
         videoLoader = VideoFileLoader(this)
         simBitmap = Bitmap.createBitmap(1280, 720, Bitmap.Config.ARGB_8888)
 
-        // Explicitly set Fluid Drift = 0.0 and Drift Correction OFF by default
+        // Explicitly set Fluid Drift = 0.0, Particle Radius = 1.0 μm (2.0 μm diam), and Drift Correction OFF by default
         simulator.driftMicronsPerSec = 0.0
+        simulator.particleRadiusMicrons = 1.0
         tracker.enableDriftCorrection = false
         binding.switchDriftFix.isChecked = false
-        binding.seekBarDrift.progress = 0
-        binding.tvDriftSliderLabel.text = "Fluid Drift: 0.00 μm/s"
 
         // Synchronize initial physics engine scale to simulator scale (0.3125 μm/px)
         physics.scaleMicronsPerPixel = simulator.scaleMicronsPerPixel
@@ -165,6 +167,145 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // -------------------------------------------------------------
+        // BI-DIRECTIONAL SYNCHRONIZED CONTROLS: TEXT BOX + SEEKBAR
+        // -------------------------------------------------------------
+
+        // 1. TEMPERATURE (0°C to 60°C)
+        binding.seekBarTemp.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser && !isUpdatingFromCode) {
+                    val temp = progress.toDouble()
+                    simulator.tempCelsius = temp
+                    isUpdatingFromCode = true
+                    binding.etTempInput.setText(String.format("%.1f", temp))
+                    isUpdatingFromCode = false
+                    physics.resetAccumulators()
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        binding.etTempInput.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                if (!isUpdatingFromCode) {
+                    val valTemp = s.toString().toDoubleOrNull()
+                    if (valTemp != null && valTemp in 0.0..100.0) {
+                        simulator.tempCelsius = valTemp
+                        isUpdatingFromCode = true
+                        binding.seekBarTemp.progress = valTemp.toInt().coerceIn(0, 60)
+                        isUpdatingFromCode = false
+                        physics.resetAccumulators()
+                    }
+                }
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+
+        // 2. VISCOSITY (0.1 mPa·s to 10.0 mPa·s)
+        binding.seekBarVisc.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser && !isUpdatingFromCode) {
+                    val visc = Math.max(0.1, progress / 10.0)
+                    simulator.viscosityMpaSec = visc
+                    isUpdatingFromCode = true
+                    binding.etViscInput.setText(String.format("%.2f", visc))
+                    isUpdatingFromCode = false
+                    physics.resetAccumulators()
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        binding.etViscInput.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                if (!isUpdatingFromCode) {
+                    val valVisc = s.toString().toDoubleOrNull()
+                    if (valVisc != null && valVisc in 0.05..50.0) {
+                        simulator.viscosityMpaSec = valVisc
+                        isUpdatingFromCode = true
+                        binding.seekBarVisc.progress = (valVisc * 10.0).toInt().coerceIn(0, 100)
+                        isUpdatingFromCode = false
+                        physics.resetAccumulators()
+                    }
+                }
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+
+        // 3. FLUID DRIFT (0.0 μm/s to 3.0 μm/s)
+        binding.seekBarDrift.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser && !isUpdatingFromCode) {
+                    val drift = progress / 10.0
+                    simulator.driftMicronsPerSec = drift
+                    isUpdatingFromCode = true
+                    binding.etDriftInput.setText(String.format("%.2f", drift))
+                    isUpdatingFromCode = false
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        binding.etDriftInput.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                if (!isUpdatingFromCode) {
+                    val valDrift = s.toString().toDoubleOrNull()
+                    if (valDrift != null && valDrift in 0.0..10.0) {
+                        simulator.driftMicronsPerSec = valDrift
+                        isUpdatingFromCode = true
+                        binding.seekBarDrift.progress = (valDrift * 10.0).toInt().coerceIn(0, 30)
+                        isUpdatingFromCode = false
+                    }
+                }
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+
+        // 4. MEAN PARTICLE SIZE / DIAMETER (0.2 μm to 10.0 μm)
+        binding.seekBarSize.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser && !isUpdatingFromCode) {
+                    val diam = Math.max(0.2, (progress / 10.0))
+                    val radius = diam / 2.0
+                    simulator.particleRadiusMicrons = radius
+                    simulator.initParticles()
+                    isUpdatingFromCode = true
+                    binding.etSizeInput.setText(String.format("%.2f", diam))
+                    isUpdatingFromCode = false
+                    physics.resetAccumulators()
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        binding.etSizeInput.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                if (!isUpdatingFromCode) {
+                    val valDiam = s.toString().toDoubleOrNull()
+                    if (valDiam != null && valDiam in 0.1..20.0) {
+                        val radius = valDiam / 2.0
+                        simulator.particleRadiusMicrons = radius
+                        simulator.initParticles()
+                        isUpdatingFromCode = true
+                        binding.seekBarSize.progress = (valDiam * 10.0).toInt().coerceIn(0, 100)
+                        isUpdatingFromCode = false
+                        physics.resetAccumulators()
+                    }
+                }
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+
+        // CAMERA CROP ZOOM SLIDER
         binding.seekBarZoom.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 val zoom = 1.0f + (progress / 100.0f) * 9.0f // 1.0x to 10.0x
@@ -190,35 +331,6 @@ class MainActivity : AppCompatActivity() {
         binding.btnSelectVideo.setOnClickListener {
             videoPickerLauncher.launch("video/*")
         }
-
-        binding.seekBarTemp.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                simulator.tempCelsius = progress.toDouble()
-                binding.tvTempSliderLabel.text = String.format("Temperature: %.1f °C", simulator.tempCelsius)
-                physics.resetAccumulators()
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
-        binding.seekBarVisc.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                simulator.viscosityMpaSec = Math.max(0.1, progress / 10.0)
-                binding.tvViscSliderLabel.text = String.format("Fluid Viscosity: %.2f mPa·s", simulator.viscosityMpaSec)
-                physics.resetAccumulators()
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
-        binding.seekBarDrift.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                simulator.driftMicronsPerSec = progress / 10.0
-                binding.tvDriftSliderLabel.text = String.format("Fluid Drift: %.2f μm/s", simulator.driftMicronsPerSec)
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
     }
 
     private fun setupCalibrationGesture() {
@@ -355,7 +467,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun processAnalytics(tracks: List<com.brownian.tracker.tracker.ParticleTrack>) {
         val isPoly = binding.switchMilkMode.isChecked
-        // Use exact harmonic mean radius for milk (0.7704 μm) or exact particle radius (1.0 μm)
+        // Use exact harmonic mean radius for milk (0.7704 μm) or exact particle radius
         val refRadius = if (isPoly) 0.7704 else simulator.particleRadiusMicrons
 
         // Synchronize scaleMicronsPerPixel between simulator and physics engine

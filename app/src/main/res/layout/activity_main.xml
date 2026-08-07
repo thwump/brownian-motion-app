@@ -73,7 +73,7 @@
     <FrameLayout
         android:id="@+id/viewportContainer"
         android:layout_width="match_parent"
-        android:layout_height="280dp">
+        android:layout_height="250dp">
 
         <androidx.camera.view.PreviewView
             android:id="@+id/viewFinder"
@@ -181,7 +181,7 @@
                 android:layout_height="wrap_content"
                 android:text="20.0 °C"
                 android:textColor="@color/accent_cyan"
-                android:textSize="16sp"
+                android:textSize="15sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
@@ -204,7 +204,7 @@
                 android:layout_height="wrap_content"
                 android:text="0.00 μm²/s"
                 android:textColor="@color/text_main"
-                android:textSize="16sp"
+                android:textSize="15sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
@@ -225,9 +225,9 @@
                 android:id="@+id/tvSizeVal"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="1.54 μm"
+                android:text="2.00 μm"
                 android:textColor="@color/accent_magenta"
-                android:textSize="16sp"
+                android:textSize="15sp"
                 android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
@@ -257,7 +257,7 @@
                     android:layout_height="wrap_content"
                     android:text="Simulate Milk / Polydisperse Size Distribution"
                     android:textColor="@color/text_main"
-                    android:checked="true" />
+                    android:checked="false" />
 
                 <com.google.android.material.switchmaterial.SwitchMaterial
                     android:id="@+id/switchDriftFix"
@@ -265,15 +265,37 @@
                     android:layout_height="wrap_content"
                     android:text="Subtract Bulk Flow (Drift Correction)"
                     android:textColor="@color/text_main"
-                    android:checked="true" />
+                    android:checked="false" />
 
-                <TextView
-                    android:id="@+id/tvTempSliderLabel"
-                    android:layout_width="wrap_content"
+                <!-- 1. TEMPERATURE CONTROL (Text + Slider) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Temperature: 20.0 °C"
-                    android:textColor="@color/text_muted"
-                    android:layout_marginTop="8dp" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="8dp">
+
+                    <TextView
+                        android:id="@+id/tvTempSliderLabel"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Temperature (°C):"
+                        android:textColor="@color/text_muted" />
+
+                    <EditText
+                        android:id="@+id/etTempInput"
+                        android:layout_width="80dp"
+                        android:layout_height="wrap_content"
+                        android:inputType="numberDecimal"
+                        android:text="20.0"
+                        android:textColor="@color/accent_cyan"
+                        android:textSize="14sp"
+                        android:gravity="center"
+                        android:background="#1a1e2e"
+                        android:padding="6dp" />
+                </LinearLayout>
+
                 <SeekBar
                     android:id="@+id/seekBarTemp"
                     android:layout_width="match_parent"
@@ -281,13 +303,35 @@
                     android:max="60"
                     android:progress="20" />
 
-                <TextView
-                    android:id="@+id/tvViscSliderLabel"
-                    android:layout_width="wrap_content"
+                <!-- 2. VISCOSITY CONTROL (Text + Slider) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Fluid Viscosity: 1.00 mPa·s"
-                    android:textColor="@color/text_muted"
-                    android:layout_marginTop="8dp" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="8dp">
+
+                    <TextView
+                        android:id="@+id/tvViscSliderLabel"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Viscosity (mPa·s):"
+                        android:textColor="@color/text_muted" />
+
+                    <EditText
+                        android:id="@+id/etViscInput"
+                        android:layout_width="80dp"
+                        android:layout_height="wrap_content"
+                        android:inputType="numberDecimal"
+                        android:text="1.00"
+                        android:textColor="@color/accent_cyan"
+                        android:textSize="14sp"
+                        android:gravity="center"
+                        android:background="#1a1e2e"
+                        android:padding="6dp" />
+                </LinearLayout>
+
                 <SeekBar
                     android:id="@+id/seekBarVisc"
                     android:layout_width="match_parent"
@@ -295,19 +339,77 @@
                     android:max="100"
                     android:progress="10" />
 
-                <TextView
-                    android:id="@+id/tvDriftSliderLabel"
-                    android:layout_width="wrap_content"
+                <!-- 3. FLUID DRIFT CONTROL (Text + Slider) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Fluid Drift: 0.50 μm/s"
-                    android:textColor="@color/text_muted"
-                    android:layout_marginTop="8dp" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="8dp">
+
+                    <TextView
+                        android:id="@+id/tvDriftSliderLabel"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Fluid Drift (μm/s):"
+                        android:textColor="@color/text_muted" />
+
+                    <EditText
+                        android:id="@+id/etDriftInput"
+                        android:layout_width="80dp"
+                        android:layout_height="wrap_content"
+                        android:inputType="numberDecimal"
+                        android:text="0.00"
+                        android:textColor="@color/accent_cyan"
+                        android:textSize="14sp"
+                        android:gravity="center"
+                        android:background="#1a1e2e"
+                        android:padding="6dp" />
+                </LinearLayout>
+
                 <SeekBar
                     android:id="@+id/seekBarDrift"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:max="30"
-                    android:progress="5" />
+                    android:progress="0" />
+
+                <!-- 4. MEAN PARTICLE SIZE CONTROL (Text + Slider) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="8dp">
+
+                    <TextView
+                        android:id="@+id/tvSizeSliderLabel"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Particle Diameter (μm):"
+                        android:textColor="@color/text_muted" />
+
+                    <EditText
+                        android:id="@+id/etSizeInput"
+                        android:layout_width="80dp"
+                        android:layout_height="wrap_content"
+                        android:inputType="numberDecimal"
+                        android:text="2.00"
+                        android:textColor="@color/accent_magenta"
+                        android:textSize="14sp"
+                        android:gravity="center"
+                        android:background="#1a1e2e"
+                        android:padding="6dp" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/seekBarSize"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="100"
+                    android:progress="20" />
             </LinearLayout>
 
             <!-- TAB 2: LIVE CAMERA CONTROLS -->
