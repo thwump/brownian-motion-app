@@ -46,8 +46,8 @@ data class PolydisperseSizingResult(
 )
 
 class PhysicsEngine {
-    // Default scale matching Full HD 1920x1080 resolution across 6mm x 3.375mm optical FOV (6000 μm / 1920 px = 3.125 μm/px)
-    var scaleMicronsPerPixel: Float = 3.125f
+    // Default scale matching 1280x720 resolution across 6mm x 3.375mm optical FOV (6000 μm / 1280 px = 4.6875 μm/px)
+    var scaleMicronsPerPixel: Float = 4.6875f
     var frameRate: Int = 60
 
     @Volatile

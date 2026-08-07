@@ -1,118 +1,121 @@
 package com.brownian.tracker.detector
 
 import java.nio.ByteBuffer
+import kotlin.math.hypot
 
 data class DetectedParticle(
     val x: Float,
     val y: Float,
-    val area: Int,
-    val radius: Float
+    val radius: Float,
+    val intensity: Float
 )
 
 class ParticleDetector {
-    var threshold: Int = 128
+    var minThreshold: Int = 30
+    var minParticleRadius: Int = 2
+    var maxParticleRadius: Int = 35
     var invert: Boolean = true
-    var minArea: Int = 4
-    var maxArea: Int = 8000
-    var blurRadius: Int = 1
 
-    fun detectParticles(yBuffer: ByteBuffer, width: Int, height: Int, rowStride: Int): List<DetectedParticle> {
-        val totalPixels = width * height
-        val grayBuffer = FloatArray(totalPixels)
-
-        var minLum = 255f
-        var maxLum = 0f
-
+    fun detectParticles(
+        yBuffer: ByteBuffer,
+        width: Int,
+        height: Int,
+        rowStride: Int
+    ): List<DetectedParticle> {
+        val particles = mutableListOf<DetectedParticle>()
         yBuffer.rewind()
 
-        // 1. Direct Y-plane extraction with rowStride handling
-        for (y in 0 until height) {
+        val yData = ByteArray(yBuffer.remaining())
+        yBuffer.get(yData)
+
+        // Downsample grid step for high-resolution processing speed
+        val step = 2
+        val labels = IntArray(width * height)
+        var currentLabel = 1
+
+        for (y in step until height - step step step) {
             val rowOffset = y * rowStride
-            val dstOffset = y * width
-            for (x in 0 until width) {
-                val lum = (yBuffer.get(rowOffset + x).toInt() and 0xFF).toFloat()
-                grayBuffer[dstOffset + x] = lum
-                if (lum < minLum) minLum = lum
-                if (lum > maxLum) maxLum = lum
-            }
-        }
+            for (x in step until width - step step step) {
+                val pixelVal = yData[rowOffset + x].toInt() and 0xFF
+                val targetVal = if (invert) (255 - pixelVal) else pixelVal
 
-        // 2. Adaptive Threshold Calculation (Handles camera auto-exposure changes)
-        val range = Math.max(10f, maxLum - minLum)
-        val ratio = threshold.toFloat() / 255f
-        val effectiveThresh = minLum + ratio * range
+                if (targetVal > minThreshold) {
+                    val idx = y * width + x
+                    if (labels[idx] == 0) {
+                        // Region growing / Flood fill for centroid extraction
+                        var sumX = 0.0
+                        var sumY = 0.0
+                        var totalIntensity = 0.0
+                        var pixelCount = 0
+                        var minX = x
+                        var maxX = x
+                        var minY = y
+                        var maxY = y
 
-        // 3. Binary Thresholding
-        val binaryMap = ByteArray(totalPixels)
-        for (i in 0 until totalPixels) {
-            val valLum = grayBuffer[i]
-            if (invert) {
-                binaryMap[i] = if (valLum < effectiveThresh) 1 else 0
-            } else {
-                binaryMap[i] = if (valLum > effectiveThresh) 1 else 0
-            }
-        }
+                        val queueX = IntArray(256)
+                        val queueY = IntArray(256)
+                        var head = 0
+                        var tail = 0
 
-        // 4. Fast BFS Centroid Search
-        val visited = ByteArray(totalPixels)
-        val queueX = IntArray(totalPixels)
-        val queueY = IntArray(totalPixels)
-        val particles = ArrayList<DetectedParticle>()
+                        queueX[tail] = x
+                        queueY[tail] = y
+                        tail++
+                        labels[idx] = currentLabel
 
-        for (y in 1 until height - 1) {
-            for (x in 1 until width - 1) {
-                val idx = y * width + x
-                if (binaryMap[idx].toInt() == 1 && visited[idx].toInt() == 0) {
-                    var head = 0
-                    var tail = 0
+                        while (head < tail && pixelCount < 500) {
+                            val qx = queueX[head]
+                            val qy = queueY[head]
+                            head++
 
-                    queueX[tail] = x
-                    queueY[tail] = y
-                    tail++
-                    visited[idx] = 1
+                            val qPixelVal = yData[qy * rowStride + qx].toInt() and 0xFF
+                            val qTargetVal = if (invert) (255 - qPixelVal) else qPixelVal
 
-                    var sumX = 0L
-                    var sumY = 0L
-                    var pixelCount = 0
+                            sumX += qx * qTargetVal
+                            sumY += qy * qTargetVal
+                            totalIntensity += qTargetVal
+                            pixelCount++
 
-                    while (head < tail) {
-                        val cx = queueX[head]
-                        val cy = queueY[head]
-                        head++
+                            if (qx < minX) minX = qx
+                            if (qx > maxX) maxX = qx
+                            if (qy < minY) minY = qy
+                            if (qy > maxY) maxY = qy
 
-                        sumX += cx
-                        sumY += cy
-                        pixelCount++
+                            // 4-neighborhood search
+                            val dxs = intArrayOf(-step, step, 0, 0)
+                            val dys = intArrayOf(0, 0, -step, step)
 
-                        val neighbors = arrayOf(
-                            intArrayOf(cx + 1, cy), intArrayOf(cx - 1, cy),
-                            intArrayOf(cx, cy + 1), intArrayOf(cx, cy - 1)
-                        )
+                            for (n in 0 until 4) {
+                                val nx = qx + dxs[n]
+                                val ny = qy + dys[n]
 
-                        for (n in 0 until 4) {
-                            val nx = neighbors[n][0]
-                            val ny = neighbors[n][1]
-                            if (nx in 0 until width && ny in 0 until height) {
-                                val nIdx = ny * width + nx
-                                if (binaryMap[nIdx].toInt() == 1 && visited[nIdx].toInt() == 0) {
-                                    visited[nIdx] = 1
-                                    queueX[tail] = nx
-                                    queueY[tail] = ny
-                                    tail++
+                                if (nx in step until width - step && ny in step until height - step) {
+                                    val nIdx = ny * width + nx
+                                    if (labels[nIdx] == 0) {
+                                        val nPixelVal = yData[ny * rowStride + nx].toInt() and 0xFF
+                                        val nTargetVal = if (invert) (255 - nPixelVal) else nPixelVal
+                                        if (nTargetVal > minThreshold) {
+                                            labels[nIdx] = currentLabel
+                                            if (tail < queueX.size) {
+                                                queueX[tail] = nx
+                                                queueY[tail] = ny
+                                                tail++
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    if (pixelCount in minArea..maxArea) {
-                        particles.add(
-                            DetectedParticle(
-                                x = sumX.toFloat() / pixelCount,
-                                y = sumY.toFloat() / pixelCount,
-                                area = pixelCount,
-                                radius = Math.sqrt(pixelCount.toDouble() / Math.PI).toFloat()
-                            )
-                        )
+                        if (pixelCount >= 2 && totalIntensity > 0) {
+                            val cx = (sumX / totalIntensity).toFloat()
+                            val cy = (sumY / totalIntensity).toFloat()
+                            val bboxRadius = (hypot((maxX - minX).toDouble(), (maxY - minY).toDouble()) / 2.0).toFloat()
+                            val radius = Math.max(minParticleRadius.toFloat(), Math.min(maxParticleRadius.toFloat(), bboxRadius))
+
+                            particles.add(DetectedParticle(cx, cy, radius, (totalIntensity / pixelCount).toFloat()))
+                        }
+
+                        currentLabel++
                     }
                 }
             }

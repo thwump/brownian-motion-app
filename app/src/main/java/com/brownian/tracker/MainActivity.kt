@@ -41,6 +41,7 @@ class MainActivity : AppCompatActivity() {
     private var activeMode = "sim" // "sim", "camera", "video"
     private var isPaused = false
     private var lastSimTimeSec = System.currentTimeMillis() / 1000.0
+    private var lastFrameTimestamp = SystemClock.elapsedRealtime()
     private var frameCounter = 0
     private var simScheduler: ScheduledExecutorService? = null
     private var simBitmap: Bitmap? = null
@@ -54,10 +55,10 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Full HD High-Resolution 1920x1080 Processing & Simulation Buffer
-        simulator = PhysicsSimulator(1920, 1080)
+        // HD 1280x720 Processing & Simulation Buffer for real-time 60 FPS performance
+        simulator = PhysicsSimulator(1280, 720)
         videoLoader = VideoFileLoader(this)
-        simBitmap = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
+        simBitmap = Bitmap.createBitmap(1280, 720, Bitmap.Config.ARGB_8888)
 
         setupNavigationTabs()
         setupUIControls()
@@ -92,7 +93,7 @@ class MainActivity : AppCompatActivity() {
         binding.simCanvas.visibility = if (mode == "sim") View.VISIBLE else View.GONE
 
         if (mode == "camera") {
-            binding.tvStatusHud.text = "Tracking • Live CameraX Full HD (1920x1080)"
+            binding.tvStatusHud.text = "Tracking • Live CameraX (1280x720)"
             stopSimulationLoop()
             if (allPermissionsGranted()) {
                 startCameraX()
@@ -100,7 +101,7 @@ class MainActivity : AppCompatActivity() {
                 ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
             }
         } else if (mode == "sim") {
-            binding.tvStatusHud.text = "Tracking • Physics Simulator Full HD Active"
+            binding.tvStatusHud.text = "Tracking • Physics Simulator HD Active"
             detector.invert = true
             if (::cameraManager.isInitialized) cameraManager.shutdown()
             startSimulationLoop()
@@ -208,15 +209,22 @@ class MainActivity : AppCompatActivity() {
     private fun startSimulationLoop() {
         stopSimulationLoop()
         lastSimTimeSec = System.currentTimeMillis() / 1000.0
+        lastFrameTimestamp = SystemClock.elapsedRealtime()
         simScheduler = Executors.newSingleThreadScheduledExecutor()
 
         simScheduler?.scheduleAtFixedRate({
             if (isPaused || activeMode != "sim") return@scheduleAtFixedRate
 
+            val nowClock = SystemClock.elapsedRealtime()
+            val frameDeltaMs = Math.max(1L, nowClock - lastFrameTimestamp)
+            lastFrameTimestamp = nowClock
+
             val nowSec = System.currentTimeMillis() / 1000.0
             val dtSec = Math.max(0.005, Math.min(0.05, nowSec - lastSimTimeSec))
             lastSimTimeSec = nowSec
             frameCounter++
+
+            val liveFps = Math.max(1, (1000.0 / frameDeltaMs.toDouble()).toInt())
 
             simulator.update(dtSec)
             simBitmap?.let { bmp ->
@@ -231,6 +239,7 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     binding.simCanvas.setImageBitmap(bmp)
                     binding.overlayView.updateData(detections, tracks, width, height)
+                    binding.tvFpsHud.text = String.format("%d FPS", liveFps)
                 }
 
                 if (frameCounter % 5 == 0) {
@@ -256,6 +265,11 @@ class MainActivity : AppCompatActivity() {
                 return@CameraXManager
             }
 
+            val nowClock = SystemClock.elapsedRealtime()
+            val frameDeltaMs = Math.max(1L, nowClock - lastFrameTimestamp)
+            lastFrameTimestamp = nowClock
+            val liveFps = Math.max(1, (1000.0 / frameDeltaMs.toDouble()).toInt())
+
             val nowSec = System.currentTimeMillis() / 1000.0
             frameCounter++
 
@@ -268,7 +282,10 @@ class MainActivity : AppCompatActivity() {
             val detections = detector.detectParticles(yBuffer, width, height, rowStride)
             val tracks = tracker.update(detections, nowSec)
 
-            binding.overlayView.updateData(detections, tracks, width, height)
+            runOnUiThread {
+                binding.overlayView.updateData(detections, tracks, width, height)
+                binding.tvFpsHud.text = String.format("%d FPS", liveFps)
+            }
 
             if (frameCounter % 5 == 0) {
                 processAnalytics(tracks)

@@ -10,14 +10,14 @@ data class SimulatedParticle(
     val radiusMicrons: Double
 )
 
-class PhysicsSimulator(var width: Int = 1920, var height: Int = 1080) {
+class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
     var particleRadiusMicrons: Double = 1.0
     var viscosityMpaSec: Double = 1.0
     var tempCelsius: Double = 20.0
     var driftMicronsPerSec: Double = 0.5
-    var numParticles: Int = 50
-    // High-Resolution 1920x1080 scale for 6mm x 3.375mm optical FOV: 6000 μm / 1920 px = 3.125 μm/px
-    var scaleMicronsPerPixel: Float = 3.125f
+    var numParticles: Int = 40
+    // HD 1280x720 scale for 6mm x 3.375mm optical FOV: 6000 μm / 1280 px = 4.6875 μm/px
+    var scaleMicronsPerPixel: Float = 4.6875f
     var isPolydisperse: Boolean = true
 
     val particles = mutableListOf<SimulatedParticle>()
@@ -76,7 +76,7 @@ class PhysicsSimulator(var width: Int = 1920, var height: Int = 1080) {
             p.x += driftDx + sigma * z0
             p.y += driftDy + sigma * z1
 
-            // Respawns new particle when leaving viewport (eliminates boundary teleports)
+            // Respawns new particle when leaving viewport
             if (p.x < 10f || p.x > width - 10f || p.y < 10f || p.y > height - 10f) {
                 particles[i] = createRandomParticle()
             }
@@ -86,9 +86,9 @@ class PhysicsSimulator(var width: Int = 1920, var height: Int = 1080) {
     fun renderToBitmap(bitmap: Bitmap) {
         val canvas = Canvas(bitmap)
 
-        // Light background
+        // Bright white-slate background
         val bgPaint = Paint().apply {
-            color = Color.parseColor("#e2e8f0")
+            color = Color.parseColor("#f1f5f9")
             style = Paint.Style.FILL
         }
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
@@ -100,22 +100,19 @@ class PhysicsSimulator(var width: Int = 1920, var height: Int = 1080) {
         }
 
         val corePaint = Paint().apply {
+            color = Color.parseColor("#020617")
             style = Paint.Style.FILL
             isAntiAlias = true
         }
 
-        // Full HD 1920x1080 diffraction-limited Point Spread Function (PSF) rendering
         for (p in particles) {
-            // At 3.125 μm/px, a 1μm to 3μm radius particle spans 4 to 12 pixels across!
-            val geometricRadiusPx = (p.radiusMicrons / scaleMicronsPerPixel).toFloat()
-            val opticalPsfRadiusPx = Math.max(4.0f, geometricRadiusPx + 2.5f)
+            val rPx = Math.max(5.0f, (p.radiusMicrons / scaleMicronsPerPixel).toFloat() * 6.0f)
 
-            // Diffraction halo ring
-            canvas.drawCircle(p.x, p.y, opticalPsfRadiusPx * 1.5f, haloPaint)
+            // Outer diffraction halo
+            canvas.drawCircle(p.x, p.y, rPx * 1.5f, haloPaint)
 
-            // Dark core spot
-            corePaint.color = Color.parseColor("#0f172a")
-            canvas.drawCircle(p.x, p.y, opticalPsfRadiusPx, corePaint)
+            // Crisp dark particle core
+            canvas.drawCircle(p.x, p.y, rPx, corePaint)
         }
     }
 }
