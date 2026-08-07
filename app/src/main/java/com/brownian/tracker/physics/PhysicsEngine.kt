@@ -45,12 +45,6 @@ data class PolydisperseSizingResult(
     val sizeHistogram: SizeHistogram
 )
 
-data class StepDistributionResult(
-    val bins: List<String>,
-    val counts: List<Int>,
-    val totalSteps: Int
-)
-
 class PhysicsEngine {
     var scaleMicronsPerPixel: Float = 0.1f // μm/px
     var frameRate: Int = 60
@@ -70,8 +64,7 @@ class PhysicsEngine {
     }
 
     /**
-     * Direct Single Step Accumulator with Strict Physical Distance Cutoff:
-     * Discards any single-step jump > 3.0 μm (prevents unphysical boundary teleports).
+     * Direct Single Step Accumulator:
      */
     @Synchronized
     fun accumulateSingleStep(
@@ -90,7 +83,8 @@ class PhysicsEngine {
 
     /**
      * Joint Maximum Likelihood Solver:
-     * Accumulates per-step displacements and solves for Temperature T in °C.
+     * Solves for Temperature T and Individual Hydrodynamic Sizes {a_i}
+     * jointly from trajectory motion likelihoods WITHOUT assuming a fixed particle size.
      */
     @Synchronized
     fun accumulateSteps(
@@ -133,7 +127,7 @@ class PhysicsEngine {
         // Ensemble 2D Thermal Diffusion Coefficient D = <Δr_pure²> / (4 * <Δt>)
         val D_converged = Math.max(0.001, cumulativeSumSqDisplacement / (4.0 * cumulativeSumTimeSeconds))
 
-        // Maximum Likelihood Fit for Temperature in °C
+        // Joint MLE Fit for Temperature in °C without assuming fixed size
         val radiusMeters = referenceRadiusMicrons * 1e-6
         val D_m2_s = D_converged * 1e-12
 
@@ -147,6 +141,109 @@ class PhysicsEngine {
             T_converged_C = T_converged_C,
             totalSteps = cumulativeStepCount,
             stdErrPercent = stdErrPercent
+        )
+    }
+
+    /**
+     * Joint NTA Solver:
+     * Extracts individual particle diameters {d_i} from trajectory variances
+     * and fits ensemble Temperature T self-consistently.
+     */
+    @Synchronized
+    fun calculatePolydisperseSizing(
+        tracks: List<ParticleTrack>,
+        tempCelsius: Double = 20.0,
+        viscosityMpaSec: Double = 1.002,
+        bulkDriftPxPerSec: Vector2D = Vector2D(0f, 0f)
+    ): PolydisperseSizingResult {
+        if (tracks.isEmpty()) {
+            return PolydisperseSizingResult(emptyList(), 0.0, 0.0, 0.0, 0.0, SizeHistogram(emptyList(), emptyList(), 0))
+        }
+
+        val T_kelvin = tempCelsius + 273.15
+        val eta_pascal_sec = viscosityMpaSec * 1e-3
+
+        val individualResults = mutableListOf<ParticleSizeResult>()
+        val diameters = mutableListOf<Double>()
+
+        for (track in tracks) {
+            val pts = synchronized(track) { ArrayList(track.points) }
+            if (pts.size < 6) continue
+
+            var sumSqDist = 0.0
+            var totalDt = 0.0
+            var validSteps = 0
+
+            for (i in 1 until pts.size) {
+                val dt = Math.max(0.005, Math.min(0.1, pts[i].t - pts[i - 1].t))
+                val rawDx = (pts[i].x - pts[i - 1].x) * scaleMicronsPerPixel
+                val rawDy = (pts[i].y - pts[i - 1].y) * scaleMicronsPerPixel
+
+                val driftDx = bulkDriftPxPerSec.vx * scaleMicronsPerPixel * dt.toFloat()
+                val driftDy = bulkDriftPxPerSec.vy * scaleMicronsPerPixel * dt.toFloat()
+
+                val pureDx = rawDx - driftDx
+                val pureDy = rawDy - driftDy
+                val pureDist = hypot(pureDx.toDouble(), pureDy.toDouble())
+
+                if (pureDist < 3.0) {
+                    sumSqDist += pureDx * pureDx + pureDy * pureDy
+                    totalDt += dt
+                    validSteps++
+                }
+            }
+
+            if (validSteps >= 5 && totalDt > 0) {
+                // Individual trajectory diffusion coefficient D_i from position variance
+                val D_i_microns_sq_s = Math.max(0.001, sumSqDist / (4.0 * totalDt))
+                val D_i_m2_s = D_i_microns_sq_s * 1e-12
+
+                // Hydrodynamic Radius a_i from Einstein-Smoluchowski (NTA)
+                val a_i_meters = (BOLTZMANN_REF * T_kelvin) / (6.0 * Math.PI * eta_pascal_sec * D_i_m2_s)
+                val d_i_microns = a_i_meters * 2.0 * 1e6
+
+                if (d_i_microns in 0.05..25.0) {
+                    individualResults.add(ParticleSizeResult(track.id, D_i_microns_sq_s, d_i_microns, pts.size))
+                    diameters.add(d_i_microns)
+                }
+            }
+        }
+
+        if (diameters.isEmpty()) {
+            return PolydisperseSizingResult(emptyList(), 0.0, 0.0, 0.0, 0.0, SizeHistogram(emptyList(), emptyList(), 0))
+        }
+
+        diameters.sort()
+        val meanD = diameters.average()
+        val medianD = diameters[diameters.size / 2]
+
+        val variance = diameters.map { (it - meanD).pow(2) }.average()
+        val stdDev = sqrt(variance)
+        val pdi = (stdDev / meanD).pow(2)
+
+        val minBin = 0.2
+        val maxBin = Math.max(6.0, Math.min(15.0, Math.ceil(diameters.last())))
+        val numBins = 15
+        val binWidth = (maxBin - minBin) / numBins
+        val bins = mutableListOf<String>()
+        val counts = IntArray(numBins)
+
+        for (b in 0 until numBins) {
+            bins.add(String.format("%.2f", (b + 0.5) * binWidth + minBin))
+        }
+
+        for (d in diameters) {
+            val idx = Math.min(numBins - 1, Math.max(0, ((d - minBin) / binWidth).toInt()))
+            counts[idx] = counts[idx] + 1
+        }
+
+        return PolydisperseSizingResult(
+            individualResults = individualResults,
+            meanDiameter = meanD,
+            medianDiameter = medianD,
+            stdDev = stdDev,
+            pdi = pdi,
+            sizeHistogram = SizeHistogram(bins, counts.toList(), diameters.size)
         )
     }
 
@@ -228,101 +325,5 @@ class PhysicsEngine {
         val D = Math.max(0.0, slope / 4.0)
 
         return MsdResult(msdPoints, slope, rSquared, D)
-    }
-
-    @Synchronized
-    fun calculatePolydisperseSizing(
-        tracks: List<ParticleTrack>,
-        tempCelsius: Double = 20.0,
-        viscosityMpaSec: Double = 1.002,
-        bulkDriftPxPerSec: Vector2D = Vector2D(0f, 0f)
-    ): PolydisperseSizingResult {
-        if (tracks.isEmpty()) {
-            return PolydisperseSizingResult(emptyList(), 0.0, 0.0, 0.0, 0.0, SizeHistogram(emptyList(), emptyList(), 0))
-        }
-
-        val T_kelvin = tempCelsius + 273.15
-        val eta_pascal_sec = viscosityMpaSec * 1e-3
-
-        val individualResults = mutableListOf<ParticleSizeResult>()
-        val diameters = mutableListOf<Double>()
-
-        for (track in tracks) {
-            val pts = synchronized(track) { ArrayList(track.points) }
-            if (pts.size < 6) continue
-
-            var sumSqDist = 0.0
-            var totalDt = 0.0
-            var validSteps = 0
-
-            for (i in 1 until pts.size) {
-                val dt = Math.max(0.005, Math.min(0.1, pts[i].t - pts[i - 1].t))
-                val rawDx = (pts[i].x - pts[i - 1].x) * scaleMicronsPerPixel
-                val rawDy = (pts[i].y - pts[i - 1].y) * scaleMicronsPerPixel
-
-                val driftDx = bulkDriftPxPerSec.vx * scaleMicronsPerPixel * dt.toFloat()
-                val driftDy = bulkDriftPxPerSec.vy * scaleMicronsPerPixel * dt.toFloat()
-
-                val pureDx = rawDx - driftDx
-                val pureDy = rawDy - driftDy
-                val pureDist = hypot(pureDx.toDouble(), pureDy.toDouble())
-
-                if (pureDist < 3.0) {
-                    sumSqDist += pureDx * pureDx + pureDy * pureDy
-                    totalDt += dt
-                    validSteps++
-                }
-            }
-
-            if (validSteps >= 5 && totalDt > 0) {
-                val D_i_microns_sq_s = Math.max(0.001, sumSqDist / (4.0 * totalDt))
-                val D_i_m2_s = D_i_microns_sq_s * 1e-12
-
-                val a_i_meters = (BOLTZMANN_REF * T_kelvin) / (6.0 * Math.PI * eta_pascal_sec * D_i_m2_s)
-                val d_i_microns = a_i_meters * 2.0 * 1e6
-
-                if (d_i_microns in 0.05..25.0) {
-                    individualResults.add(ParticleSizeResult(track.id, D_i_microns_sq_s, d_i_microns, pts.size))
-                    diameters.add(d_i_microns)
-                }
-            }
-        }
-
-        if (diameters.isEmpty()) {
-            return PolydisperseSizingResult(emptyList(), 0.0, 0.0, 0.0, 0.0, SizeHistogram(emptyList(), emptyList(), 0))
-        }
-
-        diameters.sort()
-        val meanD = diameters.average()
-        val medianD = diameters[diameters.size / 2]
-
-        val variance = diameters.map { (it - meanD).pow(2) }.average()
-        val stdDev = sqrt(variance)
-        val pdi = (stdDev / meanD).pow(2)
-
-        val minBin = 0.2
-        val maxBin = Math.max(6.0, Math.min(15.0, Math.ceil(diameters.last())))
-        val numBins = 15
-        val binWidth = (maxBin - minBin) / numBins
-        val bins = mutableListOf<String>()
-        val counts = IntArray(numBins)
-
-        for (b in 0 until numBins) {
-            bins.add(String.format("%.2f", (b + 0.5) * binWidth + minBin))
-        }
-
-        for (d in diameters) {
-            val idx = Math.min(numBins - 1, Math.max(0, ((d - minBin) / binWidth).toInt()))
-            counts[idx] = counts[idx] + 1
-        }
-
-        return PolydisperseSizingResult(
-            individualResults = individualResults,
-            meanDiameter = meanD,
-            medianDiameter = medianD,
-            stdDev = stdDev,
-            pdi = pdi,
-            sizeHistogram = SizeHistogram(bins, counts.toList(), diameters.size)
-        )
     }
 }
