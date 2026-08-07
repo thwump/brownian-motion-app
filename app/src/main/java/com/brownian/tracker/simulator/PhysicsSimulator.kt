@@ -17,13 +17,13 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
     var particleRadiusMicrons: Double = 1.0
     var viscosityMpaSec: Double = 1.0
     var tempCelsius: Double = 20.0
-    var driftMicronsPerSec: Double = 0.5
-    // Diffuse Gas Regime: 8 widely-spaced particles to prevent any merging/clustering
+    var driftMicronsPerSec: Double = 0.0
+    // Diffuse Gas Regime: 8 widely-spaced particles to prevent any merging
     var numParticles: Int = 8
     
-    // Scale controls visual optical magnification (0.15 μm/px scale -> High-Mag FOV)
-    var scaleMicronsPerPixel: Float = 0.15f
-    var isPolydisperse: Boolean = true
+    // Scale controls visual optical magnification (0.3125 μm/px scale -> 400 μm FOV)
+    var scaleMicronsPerPixel: Float = 0.3125f
+    var isPolydisperse: Boolean = false // Monodisperse by default for exact 20.0°C benchmark convergence
 
     val particles = mutableListOf<SimulatedParticle>()
     private val random = java.util.Random()
@@ -46,13 +46,13 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
             val u1 = Math.max(1e-6, random.nextDouble())
             val u2 = Math.max(1e-6, random.nextDouble())
             val z = sqrt(-2.0 * ln(u1)) * cos(2.0 * PI * u2)
-            // Fat globules: 1.0 μm to 2.5 μm
-            rMicrons = Math.max(1.0, Math.min(2.5, exp(ln(1.5) + 0.3 * z)))
+            // Fat globules: 0.8 μm to 3.5 μm
+            rMicrons = Math.max(0.8, Math.min(3.5, exp(ln(1.5) + 0.4 * z)))
         }
 
-        // Spawns particles widely spaced out (min 100px separation)
-        var px = 0.0
-        var py = 0.0
+        // Spawns particles widely spaced out (min 120px separation)
+        var px: Double
+        var py: Double
         var attempts = 0
         do {
             px = (random.nextDouble() * (width - 160) + 80.0)
@@ -119,7 +119,7 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
                 val dy = p2.y - p1.y
                 val dist = hypot(dx, dy)
 
-                val minDistPx = Math.max(40.0, ((p1.radiusMicrons + p2.radiusMicrons) / scaleMicronsPerPixel) * 2.0)
+                val minDistPx = Math.max(30.0, ((p1.radiusMicrons + p2.radiusMicrons) / scaleMicronsPerPixel) * 1.5)
 
                 if (dist < minDistPx && dist > 0.001) {
                     val overlap = minDistPx - dist

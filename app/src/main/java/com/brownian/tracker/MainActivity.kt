@@ -60,6 +60,10 @@ class MainActivity : AppCompatActivity() {
         videoLoader = VideoFileLoader(this)
         simBitmap = Bitmap.createBitmap(1280, 720, Bitmap.Config.ARGB_8888)
 
+        // Synchronize initial physics engine scale to simulator scale (0.3125 μm/px)
+        physics.scaleMicronsPerPixel = simulator.scaleMicronsPerPixel
+        binding.switchMilkMode.isChecked = false
+
         setupNavigationTabs()
         setupUIControls()
         setupCalibrationGesture()
@@ -125,7 +129,7 @@ class MainActivity : AppCompatActivity() {
             tracker.reset()
             physics.resetAccumulators()
             simulator.initParticles()
-            updateUI(0.0, 20.0, 1.54, 0, 100.0)
+            updateUI(0.214, 20.0, 2.0, 0, 100.0)
         }
 
         binding.btnCalibrate.setOnClickListener {
@@ -164,7 +168,7 @@ class MainActivity : AppCompatActivity() {
                 binding.tvZoomSliderLabel.text = String.format("Digital Sensor Crop Zoom: %.1fx (FOV: ~%.2f mm)", zoom, fovMm)
                 binding.overlayView.currentZoomRatio = zoom
 
-                // Update physical engine scale for current zoom level
+                // Synchronize physics engine and simulator scale to current zoom level
                 physics.scaleMicronsPerPixel = effectiveScale
                 simulator.scaleMicronsPerPixel = effectiveScale
 
@@ -344,7 +348,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun processAnalytics(tracks: List<com.brownian.tracker.tracker.ParticleTrack>) {
         val isPoly = binding.switchMilkMode.isChecked
+        // Use exact harmonic mean radius for milk (0.7704 μm) or exact particle radius (1.0 μm)
         val refRadius = if (isPoly) 0.7704 else simulator.particleRadiusMicrons
+
+        // Synchronize scaleMicronsPerPixel between simulator and physics engine
+        physics.scaleMicronsPerPixel = simulator.scaleMicronsPerPixel
 
         val driftPxPerSec = Vector2D(
             tracker.bulkDriftVector.vx * 60f,
@@ -366,7 +374,6 @@ class MainActivity : AppCompatActivity() {
         val msdResult = physics.calculateMSD(allTracks, 20)
         binding.msdChartView.updateMsdData(msdResult)
 
-        val isPoly = binding.switchMilkMode.isChecked
         val polyData = physics.calculatePolydisperseSizing(allTracks, simulator.tempCelsius, simulator.viscosityMpaSec)
 
         binding.psdChartView.updateHistogramData(
