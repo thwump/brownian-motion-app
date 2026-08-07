@@ -15,14 +15,14 @@ data class SimulatedParticle(
 
 class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
     var particleRadiusMicrons: Double = 1.0
-    var viscosityMpaSec: Double = 1.0
+    var viscosityMpaSec: Double = 1.002
     var tempCelsius: Double = 20.0
     var driftMicronsPerSec: Double = 0.0
     // Diffuse Gas Regime: 8 widely-spaced particles to prevent any merging
     var numParticles: Int = 8
     
-    // Scale controls visual optical magnification (0.3125 μm/px scale -> 400 μm FOV)
-    var scaleMicronsPerPixel: Float = 0.3125f
+    // High-Mag Microscope Scale: 0.05 μm/px (Allows 1.7 px/frame step resolution for exact convergence)
+    var scaleMicronsPerPixel: Float = 0.05f
     var isPolydisperse: Boolean = false // Monodisperse by default for exact 20.0°C benchmark convergence
 
     val particles = mutableListOf<SimulatedParticle>()
@@ -119,7 +119,7 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
                 val dy = p2.y - p1.y
                 val dist = hypot(dx, dy)
 
-                val minDistPx = Math.max(30.0, ((p1.radiusMicrons + p2.radiusMicrons) / scaleMicronsPerPixel) * 1.5)
+                val minDistPx = Math.max(30.0, ((p1.radiusMicrons + p2.radiusMicrons) / scaleMicronsPerPixel) * 0.8)
 
                 if (dist < minDistPx && dist > 0.001) {
                     val overlap = minDistPx - dist
@@ -174,7 +174,7 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
         for (p in particles) {
             val px = p.x.toFloat()
             val py = p.y.toFloat()
-            val rPx = Math.max(8.0f, (p.radiusMicrons / scaleMicronsPerPixel).toFloat())
+            val rPx = Math.max(10.0f, (p.radiusMicrons / scaleMicronsPerPixel).toFloat() * 0.6f)
 
             // Render glowing motion trajectory tail directly in simulator
             val head = p.trailHead

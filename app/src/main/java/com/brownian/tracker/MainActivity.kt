@@ -42,7 +42,7 @@ class MainActivity : AppCompatActivity() {
 
     private var activeMode = "sim" // "sim", "camera", "video"
     private var isPaused = false
-    private var lastSimTimeSec = System.currentTimeMillis() / 1000.0
+    private var lastSimTimeNanos = SystemClock.elapsedRealtimeNanos()
     private var lastFrameTimestamp = SystemClock.elapsedRealtime()
     private var frameCounter = 0
     private var simScheduler: ScheduledExecutorService? = null
@@ -69,7 +69,7 @@ class MainActivity : AppCompatActivity() {
         tracker.enableDriftCorrection = false
         binding.switchDriftFix.isChecked = false
 
-        // Synchronize initial physics engine scale to simulator scale (0.3125 μm/px)
+        // Synchronize initial physics engine scale to simulator scale (0.05 μm/px High-Mag)
         physics.scaleMicronsPerPixel = simulator.scaleMicronsPerPixel
         binding.switchMilkMode.isChecked = false
 
@@ -362,7 +362,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun startSimulationLoop() {
         stopSimulationLoop()
-        lastSimTimeSec = System.currentTimeMillis() / 1000.0
+        lastSimTimeNanos = SystemClock.elapsedRealtimeNanos()
         lastFrameTimestamp = SystemClock.elapsedRealtime()
         simScheduler = Executors.newSingleThreadScheduledExecutor()
 
@@ -373,11 +373,12 @@ class MainActivity : AppCompatActivity() {
             val frameDeltaMs = Math.max(1L, nowClock - lastFrameTimestamp)
             lastFrameTimestamp = nowClock
 
-            val nowSec = System.currentTimeMillis() / 1000.0
-            val dtSec = Math.max(0.005, Math.min(0.05, nowSec - lastSimTimeSec))
-            lastSimTimeSec = nowSec
+            val nowNanos = SystemClock.elapsedRealtimeNanos()
+            val dtSec = Math.max(0.005, Math.min(0.05, (nowNanos - lastSimTimeNanos) / 1e9))
+            lastSimTimeNanos = nowNanos
             frameCounter++
 
+            val nowSec = nowNanos / 1e9
             val liveFps = Math.max(1, (1000.0 / frameDeltaMs.toDouble()).toInt())
 
             simulator.update(dtSec)
@@ -424,7 +425,7 @@ class MainActivity : AppCompatActivity() {
             lastFrameTimestamp = nowClock
             val liveFps = Math.max(1, (1000.0 / frameDeltaMs.toDouble()).toInt())
 
-            val nowSec = System.currentTimeMillis() / 1000.0
+            val nowSec = SystemClock.elapsedRealtimeNanos() / 1e9
             frameCounter++
 
             val plane = imageProxy.planes[0]
@@ -459,7 +460,7 @@ class MainActivity : AppCompatActivity() {
             binding.simCanvas.visibility = View.VISIBLE
             val (yBuffer, width) = videoLoader.bitmapToYBuffer(bmp)
             val detections = detector.detectParticles(yBuffer, width, bmp.height, width)
-            val tracks = tracker.update(detections, System.currentTimeMillis() / 1000.0)
+            val tracks = tracker.update(detections, SystemClock.elapsedRealtimeNanos() / 1e9)
             binding.overlayView.updateData(detections, tracks, width, bmp.height)
             processAnalytics(tracks)
         }
@@ -470,8 +471,9 @@ class MainActivity : AppCompatActivity() {
         // Use exact harmonic mean radius for milk (0.7704 μm) or exact particle radius
         val refRadius = if (isPoly) 0.7704 else simulator.particleRadiusMicrons
 
-        // Synchronize scaleMicronsPerPixel between simulator and physics engine
+        // Synchronize scaleMicronsPerPixel and viscosityMpaSec between simulator and physics engine
         physics.scaleMicronsPerPixel = simulator.scaleMicronsPerPixel
+        val currentViscosity = simulator.viscosityMpaSec
 
         val driftPxPerSec = if (tracker.enableDriftCorrection) {
             Vector2D(
@@ -482,7 +484,7 @@ class MainActivity : AppCompatActivity() {
             Vector2D(0f, 0f)
         }
 
-        val cumul = physics.accumulateSteps(tracks, driftPxPerSec, refRadius)
+        val cumul = physics.accumulateSteps(tracks, driftPxPerSec, refRadius, currentViscosity)
 
         runOnUiThread {
             updateUI(cumul.D_converged, cumul.T_converged_C, if (isPoly) 1.54 else (simulator.particleRadiusMicrons * 2), cumul.totalSteps, cumul.stdErrPercent)
