@@ -18,6 +18,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.brownian.tracker.camera.CameraXManager
 import com.brownian.tracker.databinding.ActivityMainBinding
+import com.brownian.tracker.detector.DetectedParticle
 import com.brownian.tracker.detector.ParticleDetector
 import com.brownian.tracker.physics.PhysicsEngine
 import com.brownian.tracker.simulator.PhysicsSimulator
@@ -382,18 +383,24 @@ class MainActivity : AppCompatActivity() {
             val liveFps = Math.max(1, (1000.0 / frameDeltaMs.toDouble()).toInt())
 
             simulator.update(dtSec)
+
+            // Direct Floating-Point Particle Coordinates in Simulation Mode (Eliminates Bitmap Rasterization Noise)
+            val detections = simulator.particles.map { p ->
+                DetectedParticle(
+                    x = p.x.toFloat(),
+                    y = p.y.toFloat(),
+                    radius = (p.radiusMicrons / simulator.scaleMicronsPerPixel).toFloat(),
+                    intensity = 255f
+                )
+            }
+            val tracks = tracker.update(detections, nowSec)
+
             simBitmap?.let { bmp ->
                 simulator.renderToBitmap(bmp)
 
-                val (yBuffer, width) = videoLoader.bitmapToYBuffer(bmp)
-                val height = bmp.height
-
-                val detections = detector.detectParticles(yBuffer, width, height, width)
-                val tracks = tracker.update(detections, nowSec)
-
                 runOnUiThread {
                     binding.simCanvas.setImageBitmap(bmp)
-                    binding.overlayView.updateData(detections, tracks, width, height)
+                    binding.overlayView.updateData(detections, tracks, 1280, 720)
                     binding.tvFpsHud.text = String.format("%d FPS", liveFps)
                 }
 
