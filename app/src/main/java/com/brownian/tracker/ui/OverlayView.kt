@@ -26,7 +26,9 @@ class OverlayView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
+    @Volatile
     private var particlesSnapshot: List<DetectedParticle> = emptyList()
+    @Volatile
     private var tracksSnapshot: List<RenderTrackSnapshot> = emptyList()
     private var scaleX: Float = 1.0f
     private var scaleY: Float = 1.0f
@@ -97,13 +99,16 @@ class OverlayView @JvmOverloads constructor(
 
     fun updateData(newParticles: List<DetectedParticle>, newTracks: List<ParticleTrack>, procWidth: Int, procHeight: Int) {
         // Defensive thread-safe deep copy snapshot
-        this.particlesSnapshot = ArrayList(newParticles)
-        this.tracksSnapshot = newTracks.map { track ->
+        val particlesCopy = ArrayList(newParticles)
+        val tracksCopy = newTracks.map { track ->
             val ptsCopy = synchronized(track) {
                 ArrayList(track.points)
             }
             RenderTrackSnapshot(track.id, track.color, ptsCopy)
         }
+
+        this.particlesSnapshot = particlesCopy
+        this.tracksSnapshot = tracksCopy
 
         if (procWidth > 0 && procHeight > 0 && width > 0 && height > 0) {
             this.scaleX = width.toFloat() / procWidth.toFloat()
