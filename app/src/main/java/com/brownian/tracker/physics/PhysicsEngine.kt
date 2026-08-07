@@ -70,7 +70,8 @@ class PhysicsEngine {
     }
 
     /**
-     * Direct Single Step Accumulator (Never loses historical steps):
+     * Direct Single Step Accumulator with Strict Physical Distance Cutoff:
+     * Discards any single-step jump > 3.0 μm (prevents unphysical boundary teleports).
      */
     @Synchronized
     fun accumulateSingleStep(
@@ -79,7 +80,7 @@ class PhysicsEngine {
         dtSeconds: Double
     ) {
         val pureDist = hypot(pureDxMicrons, pureDyMicrons)
-        if (pureDist in 0.0001..6.0 && dtSeconds in 0.005..0.1) {
+        if (pureDist in 0.0001..3.0 && dtSeconds in 0.005..0.1) {
             val sqDist = pureDxMicrons * pureDxMicrons + pureDyMicrons * pureDyMicrons
             cumulativeSumSqDisplacement += sqDist
             cumulativeSumTimeSeconds += dtSeconds
@@ -172,7 +173,7 @@ class PhysicsEngine {
                     val dy = (pts[i + lag].y - pts[i].y) * scaleMicronsPerPixel
                     val dist = hypot(dx.toDouble(), dy.toDouble())
 
-                    if (dist < 6.0 * lag) {
+                    if (dist < 3.0 * lag) {
                         val sqDist = dx * dx + dy * dy
                         lagSums[lag] = lagSums[lag] + sqDist
                         lagCounts[lag] = lagCounts[lag] + 1
@@ -266,7 +267,7 @@ class PhysicsEngine {
                 val pureDy = rawDy - driftDy
                 val pureDist = hypot(pureDx.toDouble(), pureDy.toDouble())
 
-                if (pureDist < 6.0) {
+                if (pureDist < 3.0) {
                     sumSqDist += pureDx * pureDx + pureDy * pureDy
                     totalDt += dt
                     validSteps++

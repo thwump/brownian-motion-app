@@ -30,23 +30,26 @@ class PhysicsSimulator(var width: Int = 640, var height: Int = 480) {
         val random = java.util.Random()
 
         for (i in 0 until numParticles) {
-            var rMicrons = particleRadiusMicrons
-
-            if (isPolydisperse) {
-                val u1 = Math.max(1e-6, random.nextDouble())
-                val u2 = Math.max(1e-6, random.nextDouble())
-                val z = sqrt(-2.0 * ln(u1)) * cos(2.0 * PI * u2)
-                rMicrons = Math.max(0.3, Math.min(4.5, exp(ln(1.2) + 0.55 * z)))
-            }
-
-            particles.add(
-                SimulatedParticle(
-                    x = (random.nextFloat() * (width - 80) + 40),
-                    y = (random.nextFloat() * (height - 80) + 40),
-                    radiusMicrons = rMicrons
-                )
-            )
+            particles.add(createRandomParticle())
         }
+    }
+
+    private fun createRandomParticle(): SimulatedParticle {
+        val random = java.util.Random()
+        var rMicrons = particleRadiusMicrons
+
+        if (isPolydisperse) {
+            val u1 = Math.max(1e-6, random.nextDouble())
+            val u2 = Math.max(1e-6, random.nextDouble())
+            val z = sqrt(-2.0 * ln(u1)) * cos(2.0 * PI * u2)
+            rMicrons = Math.max(0.3, Math.min(4.5, exp(ln(1.2) + 0.55 * z)))
+        }
+
+        return SimulatedParticle(
+            x = (random.nextFloat() * (width - 80) + 40),
+            y = (random.nextFloat() * (height - 80) + 40),
+            radiusMicrons = rMicrons
+        )
     }
 
     fun update(dtSeconds: Double) {
@@ -59,7 +62,8 @@ class PhysicsSimulator(var width: Int = 640, var height: Int = 480) {
 
         val random = java.util.Random()
 
-        for (p in particles) {
+        for (i in particles.indices) {
+            val p = particles[i]
             val radius_meters = p.radiusMicrons * 1e-6
             val D_m2_s = (BOLTZMANN_REF * T_kelvin) / (6.0 * PI * eta_pascal_sec * radius_meters)
             val D_microns_sq_s = D_m2_s * 1e12
@@ -74,11 +78,12 @@ class PhysicsSimulator(var width: Int = 640, var height: Int = 480) {
             p.x += driftDx + sigma * z0
             p.y += driftDy + sigma * z1
 
-            // Wrap-around boundaries
-            if (p.x < 15f) p.x = width - 15f
-            if (p.x > width - 15f) p.x = 15f
-            if (p.y < 15f) p.y = height - 15f
-            if (p.y > height - 15f) p.y = 15f
+            // REAL MICROSCOPE BEHAVIOR:
+            // When a particle leaves the optical field of view, respawn a brand-new particle at a new position!
+            // Do NOT torus-wrap, preventing unphysical cross-screen tracking teleports.
+            if (p.x < 10f || p.x > width - 10f || p.y < 10f || p.y > height - 10f) {
+                particles[i] = createRandomParticle()
+            }
         }
     }
 
