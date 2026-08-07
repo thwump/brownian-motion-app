@@ -322,17 +322,24 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="📷 Camera Setup"
+                    android:text="📷 Camera Controls &amp; Crop Zoom"
                     android:textColor="@color/text_main"
                     android:textStyle="bold" />
 
                 <TextView
+                    android:id="@+id/tvZoomSliderLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Camera is hard-locked to Main 1.0x Rear Lens (LENS_FACING_BACK, zoom=1.0f). Multi-lens flipping and selfie fallback are strictly disabled."
-                    android:textColor="@color/text_muted"
-                    android:textSize="12sp"
-                    android:layout_marginTop="6dp" />
+                    android:text="Digital Sensor Crop Zoom: 1.0x (FOV: ~4.0 mm)"
+                    android:textColor="@color/accent_cyan"
+                    android:textSize="13sp"
+                    android:layout_marginTop="8dp" />
+                <SeekBar
+                    android:id="@+id/seekBarZoom"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="100"
+                    android:progress="0" />
 
                 <Button
                     android:id="@+id/btnToggleTorch"

@@ -93,7 +93,7 @@ class MainActivity : AppCompatActivity() {
         binding.simCanvas.visibility = if (mode == "sim") View.VISIBLE else View.GONE
 
         if (mode == "camera") {
-            binding.tvStatusHud.text = "Tracking • Live CameraX (1280x720)"
+            binding.tvStatusHud.text = "Tracking • Live CameraX Sensor Stream"
             stopSimulationLoop()
             if (allPermissionsGranted()) {
                 startCameraX()
@@ -101,7 +101,7 @@ class MainActivity : AppCompatActivity() {
                 ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
             }
         } else if (mode == "sim") {
-            binding.tvStatusHud.text = "Tracking • Physics Simulator HD Active"
+            binding.tvStatusHud.text = "Tracking • Physics Simulator Active"
             detector.invert = true
             if (::cameraManager.isInitialized) cameraManager.shutdown()
             startSimulationLoop()
@@ -149,6 +149,19 @@ class MainActivity : AppCompatActivity() {
                 cameraManager.toggleTorch()
             }
         }
+
+        binding.seekBarZoom.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                val zoom = 1.0f + (progress / 100.0f) * 9.0f // 1.0x to 10.0x
+                val fovMm = 4.0 / zoom
+                binding.tvZoomSliderLabel.text = String.format("Digital Sensor Crop Zoom: %.1fx (FOV: ~%.2f mm)", zoom, fovMm)
+                if (::cameraManager.isInitialized) {
+                    cameraManager.setZoomRatio(zoom)
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
 
         binding.btnSelectVideo.setOnClickListener {
             videoPickerLauncher.launch("video/*")

@@ -124,7 +124,6 @@ class CameraXManager(
                 cameraControl = camera?.cameraControl
                 cameraInfo = camera?.cameraInfo
 
-                // LOCK OPTICAL ZOOM RATIO TO 1.0f
                 cameraControl?.setZoomRatio(1.0f)
                 Log.d("CameraXManager", "Camera bound to Native 12.5 MP Sensor Resolution Stream!")
 
@@ -157,6 +156,10 @@ class CameraXManager(
             }
 
         }, ContextCompat.getMainExecutor(context))
+    }
+
+    fun setZoomRatio(ratio: Float) {
+        cameraControl?.setZoomRatio(Math.max(1.0f, Math.min(10.0f, ratio)))
     }
 
     fun toggleTorch(): Boolean {
