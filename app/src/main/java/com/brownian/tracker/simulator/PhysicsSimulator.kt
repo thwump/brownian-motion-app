@@ -15,9 +15,12 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
     var viscosityMpaSec: Double = 1.0
     var tempCelsius: Double = 20.0
     var driftMicronsPerSec: Double = 0.5
-    var numParticles: Int = 40
-    // Physical scale for 6mm x 3.375mm optical FOV (6000 μm / 1280 px = 4.6875 μm/px)
-    var scaleMicronsPerPixel: Float = 4.6875f
+    var numParticles: Int = 30
+    
+    // Scale controls visual optical magnification:
+    // 0.1 μm/px = High-Mag Microscope (50μm FOV) -> Vivid jiggling visible!
+    // 4.68 μm/px = Wide Macro Lens (6000μm FOV) -> Appears stationary
+    var scaleMicronsPerPixel: Float = 0.1f
     var isPolydisperse: Boolean = true
 
     val particles = mutableListOf<SimulatedParticle>()
@@ -67,7 +70,6 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
             val D_microns_sq_s = D_m2_s * 1e12
             val D_px_sq_s = D_microns_sq_s / (scaleMicronsPerPixel * scaleMicronsPerPixel)
             
-            // Sub-pixel thermal step size σ_px (e.g. ~0.025 px per frame at 60 FPS)
             val sigma = sqrt(2.0 * D_px_sq_s * dtSeconds)
 
             val u1 = Math.max(1e-6, random.nextDouble())
@@ -108,12 +110,12 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
         }
 
         for (p in particles) {
-            val rPx = Math.max(6.0f, (p.radiusMicrons / scaleMicronsPerPixel).toFloat() * 8.0f)
+            val rPx = Math.max(6.0f, (p.radiusMicrons / scaleMicronsPerPixel).toFloat())
             val px = p.x.toFloat()
             val py = p.y.toFloat()
 
             // Outer diffraction halo
-            canvas.drawCircle(px, py, rPx * 1.5f, haloPaint)
+            canvas.drawCircle(px, py, rPx * 1.4f, haloPaint)
 
             // Crisp dark particle core
             canvas.drawCircle(px, py, rPx, corePaint)
