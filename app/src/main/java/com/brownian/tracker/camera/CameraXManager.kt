@@ -4,6 +4,7 @@ import android.content.Context
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.CameraManager as HardwareCameraManager
+import android.util.Log
 import android.util.Size
 import androidx.annotation.OptIn
 import androidx.camera.camera2.interop.Camera2Interop
@@ -36,39 +37,47 @@ class CameraXManager(
         cameraProviderFuture.addListener({
             cameraProvider = cameraProviderFuture.get()
 
-            // 1. Locate Physical Main Rear Hardware Sensor ID (e.g. "0")
+            // 1. Inspect Physical Sub-Camera IDs if available
             val hardwareCameraManager = context.getSystemService(Context.CAMERA_SERVICE) as HardwareCameraManager
-            var physicalMainCameraId: String? = null
+            var targetPhysicalId: String? = null
 
             try {
                 for (id in hardwareCameraManager.cameraIdList) {
                     val characteristics = hardwareCameraManager.getCameraCharacteristics(id)
                     val facing = characteristics.get(CameraCharacteristics.LENS_FACING)
                     if (facing == CameraCharacteristics.LENS_FACING_BACK) {
-                        physicalMainCameraId = id
+                        val physSet = characteristics.physicalCameraIds
+                        Log.d("CameraXManager", "Rear Camera ID $id physical sub-cameras: $physSet")
+                        if (physSet.isNotEmpty()) {
+                            targetPhysicalId = physSet.iterator().next()
+                        }
                         break
                     }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("CameraXManager", "Error querying physical camera IDs: ${e.message}")
             }
 
-            // 2. Preview Use-case with Camera2Interop Physical Camera Lock
-            val previewBuilder = Preview.Builder()
-                .setTargetResolution(Size(640, 480))
-            
+            Log.d("CameraXManager", "Target Physical Camera ID for lock: $targetPhysicalId")
+
+            // 2. Build Preview
+            val previewBuilder = Preview.Builder().setTargetResolution(Size(640, 480))
             val previewInterop = Camera2Interop.Extender(previewBuilder)
                 .setCaptureRequestOption(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_DISABLED)
 
-            physicalMainCameraId?.let { physId ->
-                previewInterop.setPhysicalCameraId(physId)
+            if (targetPhysicalId != null) {
+                try {
+                    previewInterop.setPhysicalCameraId(targetPhysicalId)
+                } catch (e: Exception) {
+                    Log.w("CameraXManager", "Could not set physical camera ID on preview: ${e.message}")
+                }
             }
 
             val preview = previewBuilder.build().also {
                 it.setSurfaceProvider(previewView.surfaceProvider)
             }
 
-            // 3. ImageAnalysis Use-case (Zero-copy YUV_420_888 stream)
+            // 3. Build ImageAnalysis
             val analysisBuilder = ImageAnalysis.Builder()
                 .setTargetResolution(Size(480, 360))
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
@@ -77,8 +86,12 @@ class CameraXManager(
             val analysisInterop = Camera2Interop.Extender(analysisBuilder)
                 .setCaptureRequestOption(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_DISABLED)
 
-            physicalMainCameraId?.let { physId ->
-                analysisInterop.setPhysicalCameraId(physId)
+            if (targetPhysicalId != null) {
+                try {
+                    analysisInterop.setPhysicalCameraId(targetPhysicalId)
+                } catch (e: Exception) {
+                    Log.w("CameraXManager", "Could not set physical camera ID on analysis: ${e.message}")
+                }
             }
 
             val imageAnalyzer = analysisBuilder.build().also {
@@ -87,7 +100,7 @@ class CameraXManager(
                 }
             }
 
-            // 4. Strict Lens Facing BACK Selector
+            // 4. Bind Use-Cases with Fail-Safe Fallback
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
             try {
@@ -102,11 +115,38 @@ class CameraXManager(
                 cameraControl = camera?.cameraControl
                 cameraInfo = camera?.cameraInfo
 
-                // HARDCODE OPTICAL ZOOM RATIO TO 1.0f TO PREVENT MULTI-LENS FLIPPING ON PIXEL 9
+                // HARDCODE OPTICAL ZOOM RATIO TO 1.0f TO LOCK MAIN 1X SENSOR
                 cameraControl?.setZoomRatio(1.0f)
+                Log.d("CameraXManager", "Camera successfully bound to lifecycle!")
 
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("CameraXManager", "Primary physical camera binding failed, retrying with fallback: ${e.message}")
+                try {
+                    // Fallback without physical ID override
+                    val fallbackPreview = Preview.Builder().setTargetResolution(Size(640, 480)).build().also {
+                        it.setSurfaceProvider(previewView.surfaceProvider)
+                    }
+                    val fallbackAnalyzer = ImageAnalysis.Builder()
+                        .setTargetResolution(Size(480, 360))
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
+                        .build().also {
+                            it.setAnalyzer(cameraExecutor) { imageProxy -> onFrameAnalyzer(imageProxy) }
+                        }
+
+                    cameraProvider?.unbindAll()
+                    val fallbackCamera = cameraProvider?.bindToLifecycle(
+                        lifecycleOwner,
+                        CameraSelector.DEFAULT_BACK_CAMERA,
+                        fallbackPreview,
+                        fallbackAnalyzer
+                    )
+                    cameraControl = fallbackCamera?.cameraControl
+                    cameraControl?.setZoomRatio(1.0f)
+                    Log.d("CameraXManager", "Fallback camera successfully bound!")
+                } catch (fallbackEx: Exception) {
+                    Log.e("CameraXManager", "Fallback camera binding also failed: ${fallbackEx.message}", fallbackEx)
+                }
             }
 
         }, ContextCompat.getMainExecutor(context))
