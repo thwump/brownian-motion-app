@@ -326,6 +326,15 @@
                     android:textColor="@color/text_main"
                     android:textStyle="bold" />
 
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switchShowOverlay"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Show Particle Detection &amp; Tracking Overlays"
+                    android:textColor="@color/text_main"
+                    android:checked="true"
+                    android:layout_marginTop="6dp" />
+
                 <TextView
                     android:id="@+id/tvZoomSliderLabel"
                     android:layout_width="wrap_content"

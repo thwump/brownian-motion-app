@@ -30,6 +30,7 @@ class OverlayView @JvmOverloads constructor(
     private var scaleX: Float = 1.0f
     private var scaleY: Float = 1.0f
 
+    var isOverlayEnabled: Boolean = true
     var isCalibrationMode: Boolean = false
     var onCalibrationComplete: ((distPx: Float) -> Unit)? = null
 
@@ -122,43 +123,46 @@ class OverlayView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        // Draw Multi-Colored Particle Trajectories
-        val tracksToDraw = tracksSnapshot
-        for (track in tracksToDraw) {
-            val pts = track.points
-            if (pts.size < 2) continue
+        // If overlay toggle is OFF, skip drawing particle rings and trajectory tracks
+        if (isOverlayEnabled) {
+            // Draw Multi-Colored Particle Trajectories
+            val tracksToDraw = tracksSnapshot
+            for (track in tracksToDraw) {
+                val pts = track.points
+                if (pts.size < 2) continue
 
-            trackPaint.color = track.color
+                trackPaint.color = track.color
 
-            for (i in 1 until pts.size) {
-                val p1 = pts[i - 1]
-                val p2 = pts[i]
-                canvas.drawLine(
-                    p1.x * scaleX, p1.y * scaleY,
-                    p2.x * scaleX, p2.y * scaleY,
-                    trackPaint
-                )
+                for (i in 1 until pts.size) {
+                    val p1 = pts[i - 1]
+                    val p2 = pts[i]
+                    canvas.drawLine(
+                        p1.x * scaleX, p1.y * scaleY,
+                        p2.x * scaleX, p2.y * scaleY,
+                        trackPaint
+                    )
+                }
+            }
+
+            // Draw Particle Detection Bounding Rings
+            val particlesToDraw = particlesSnapshot
+            for (particle in particlesToDraw) {
+                val cx = particle.x * scaleX
+                val cy = particle.y * scaleY
+                val r = Math.max(12f, particle.radius * ((scaleX + scaleY) / 2f))
+
+                canvas.drawCircle(cx, cy, r, detectionPaint)
+                canvas.drawCircle(cx, cy, 5f, centerPaint)
             }
         }
 
-        // Draw Particle Detection Bounding Rings
-        val particlesToDraw = particlesSnapshot
-        for (particle in particlesToDraw) {
-            val cx = particle.x * scaleX
-            val cy = particle.y * scaleY
-            val r = Math.max(12f, particle.radius * ((scaleX + scaleY) / 2f))
-
-            canvas.drawCircle(cx, cy, r, detectionPaint)
-            canvas.drawCircle(cx, cy, 5f, centerPaint)
-        }
-
-        // Draw Calibration Line
+        // Draw Calibration Line (Always visible during calibration mode)
         val p1 = calibStartPoint
         val p2 = calibEndPoint
         if (p1 != null && p2 != null) {
             canvas.drawLine(p1.x, p1.y, p2.x, p2.y, calibPaint)
             canvas.drawCircle(p1.x, p1.y, 10f, centerPaint)
-            canvas.drawCircle(p2.y, p2.y, 10f, centerPaint)
+            canvas.drawCircle(p2.x, p2.y, 10f, centerPaint)
 
             val distPx = hypot(p2.x - p1.x, p2.y - p1.y)
             canvas.drawText(String.format("%.1f px", distPx), (p1.x + p2.x) / 2f + 20f, (p1.y + p2.y) / 2f - 20f, calibTextPaint)

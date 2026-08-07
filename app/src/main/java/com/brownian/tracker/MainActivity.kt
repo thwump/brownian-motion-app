@@ -133,6 +133,10 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Calibration: Drag a line on the video matching a known physical distance (e.g. 10 μm).", Toast.LENGTH_LONG).show()
         }
 
+        binding.switchShowOverlay.setOnCheckedChangeListener { _, isChecked ->
+            binding.overlayView.isOverlayEnabled = isChecked
+        }
+
         binding.switchMilkMode.setOnCheckedChangeListener { _, isChecked ->
             simulator.isPolydisperse = isChecked
             simulator.initParticles()
