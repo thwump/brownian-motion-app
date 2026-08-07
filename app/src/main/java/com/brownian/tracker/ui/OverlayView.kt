@@ -14,6 +14,8 @@ import com.brownian.tracker.tracker.TrackPoint
 import kotlin.math.hypot
 
 data class RenderTrackSnapshot(
+    val id: Int,
+    val color: Int,
     val points: List<TrackPoint>
 )
 
@@ -48,7 +50,6 @@ class OverlayView @JvmOverloads constructor(
     }
 
     private val trackPaint = Paint().apply {
-        color = Color.parseColor("#00f2fe")
         style = Paint.Style.STROKE
         strokeWidth = 5f
         isAntiAlias = true
@@ -74,7 +75,7 @@ class OverlayView @JvmOverloads constructor(
             val ptsCopy = synchronized(track) {
                 ArrayList(track.points)
             }
-            RenderTrackSnapshot(ptsCopy)
+            RenderTrackSnapshot(track.id, track.color, ptsCopy)
         }
 
         if (procWidth > 0 && procHeight > 0 && width > 0 && height > 0) {
@@ -121,11 +122,13 @@ class OverlayView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        // Safely draw immutable snapshots of Trajectory Lines
+        // Draw Multi-Colored Particle Trajectories
         val tracksToDraw = tracksSnapshot
         for (track in tracksToDraw) {
             val pts = track.points
             if (pts.size < 2) continue
+
+            trackPaint.color = track.color
 
             for (i in 1 until pts.size) {
                 val p1 = pts[i - 1]
@@ -138,7 +141,7 @@ class OverlayView @JvmOverloads constructor(
             }
         }
 
-        // Safely draw Particle Detection Bounding Rings
+        // Draw Particle Detection Bounding Rings
         val particlesToDraw = particlesSnapshot
         for (particle in particlesToDraw) {
             val cx = particle.x * scaleX
@@ -155,7 +158,7 @@ class OverlayView @JvmOverloads constructor(
         if (p1 != null && p2 != null) {
             canvas.drawLine(p1.x, p1.y, p2.x, p2.y, calibPaint)
             canvas.drawCircle(p1.x, p1.y, 10f, centerPaint)
-            canvas.drawCircle(p2.x, p2.y, 10f, centerPaint)
+            canvas.drawCircle(p2.y, p2.y, 10f, centerPaint)
 
             val distPx = hypot(p2.x - p1.x, p2.y - p1.y)
             canvas.drawText(String.format("%.1f px", distPx), (p1.x + p2.x) / 2f + 20f, (p1.y + p2.y) / 2f - 20f, calibTextPaint)

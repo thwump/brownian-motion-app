@@ -1,12 +1,25 @@
 package com.brownian.tracker.tracker
 
+import android.graphics.Color
 import com.brownian.tracker.detector.DetectedParticle
 import kotlin.math.hypot
+
+val TRACK_COLORS = intArrayOf(
+    Color.parseColor("#00f2fe"), // Cyan
+    Color.parseColor("#f72585"), // Magenta
+    Color.parseColor("#9d4edd"), // Purple
+    Color.parseColor("#4cc9f0"), // Light Blue
+    Color.parseColor("#7209b7"), // Deep Violet
+    Color.parseColor("#4895ef"), // Blue
+    Color.parseColor("#b5179e"), // Pink
+    Color.parseColor("#f15bb5")  // Rose
+)
 
 data class TrackPoint(val x: Float, val y: Float, val t: Double)
 
 data class ParticleTrack(
     val id: Int,
+    val color: Int = TRACK_COLORS[id % TRACK_COLORS.size],
     val points: MutableList<TrackPoint> = mutableListOf(),
     var lastAccumulatedTime: Double = 0.0
 )
@@ -20,8 +33,8 @@ class ParticleTracker {
     
     var maxDistancePx: Float = 40f
     var maxUnseenFrames: Int = 5
-    var maxTrackPoints: Int = 60
-    var maxCompletedTracks: Int = 15
+    var maxTrackPoints: Int = 150 // Extended visual tail length
+    var maxCompletedTracks: Int = 20
     var enableDriftCorrection: Boolean = true
 
     var bulkDriftVector: Vector2D = Vector2D(0f, 0f)
@@ -92,12 +105,12 @@ class ParticleTracker {
             }
         }
 
-        // Prune old inactive tracks
+        // Prune old inactive tracks (Keep completed tracks on screen longer)
         val iterator = activeTracks.iterator()
         while (iterator.hasNext()) {
             val track = iterator.next()
             val lastPt = synchronized(track) { track.points.lastOrNull() }
-            if (lastPt != null && (nowSec - lastPt.t) > 0.5) {
+            if (lastPt != null && (nowSec - lastPt.t) > 1.2) { // 1.2s timeout before pruning
                 val pSize = synchronized(track) { track.points.size }
                 if (pSize >= 10) {
                     completedTracks.add(track)
