@@ -11,7 +11,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="16dp"
+        android:padding="14dp"
         android:gravity="center_vertical"
         android:background="@color/card_bg">
 
@@ -21,7 +21,7 @@
             android:layout_weight="1"
             android:text="🔬 Brownian NTA Lab"
             android:textColor="@color/text_main"
-            android:textSize="20sp"
+            android:textSize="18sp"
             android:textStyle="bold" />
 
         <TextView
@@ -30,53 +30,138 @@
             android:layout_height="wrap_content"
             android:text="60 FPS"
             android:textColor="@color/accent_cyan"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textStyle="bold"
             android:background="#1a00f2fe"
-            android:paddingHorizontal="10dp"
+            android:paddingHorizontal="8dp"
             android:paddingVertical="4dp" />
     </LinearLayout>
 
-    <!-- Camera Preview & Overlay Canvas Container -->
-    <FrameLayout
+    <!-- Navigation Tabs -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tabLayout"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1">
+        android:layout_height="wrap_content"
+        android:background="@color/card_bg"
+        app:tabTextColor="@color/text_muted"
+        app:tabSelectedTextColor="@color/accent_cyan"
+        app:tabIndicatorColor="@color/accent_cyan"
+        app:tabMode="fixed">
+
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🔬 Sim" />
+
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📷 Camera" />
+
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📁 Video" />
+
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📊 Analytics" />
+    </com.google.android.material.tabs.TabLayout>
+
+    <!-- Camera Preview & Viewport Canvas Container -->
+    <FrameLayout
+        android:id="@+id/viewportContainer"
+        android:layout_width="match_parent"
+        android:layout_height="280dp">
 
         <androidx.camera.view.PreviewView
             android:id="@+id/viewFinder"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
 
+        <ImageView
+            android:id="@+id/simCanvas"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitXY" />
+
         <com.brownian.tracker.ui.OverlayView
             android:id="@+id/overlayView"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
 
-        <!-- Status HUD overlay -->
+        <!-- Status HUD -->
         <TextView
             android:id="@+id/tvStatusHud"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="top|start"
-            android:layout_margin="12dp"
-            android:text="Ready • Main 1x Lens Locked"
+            android:layout_margin="10dp"
+            android:text="Ready • Simulator Active"
             android:textColor="@color/text_main"
-            android:textSize="12sp"
+            android:textSize="11sp"
             android:background="#cc161e2e"
-            android:paddingHorizontal="10dp"
-            android:paddingVertical="6dp" />
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="4dp" />
     </FrameLayout>
+
+    <!-- Toolbar Action Grid -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="8dp"
+        android:background="#0e1422">
+
+        <Button
+            android:id="@+id/btnStart"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Start"
+            android:textColor="#0b0f19"
+            android:backgroundTint="@color/accent_cyan" />
+
+        <Button
+            android:id="@+id/btnPause"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Pause"
+            android:textColor="@color/text_main"
+            android:layout_marginStart="4dp" />
+
+        <Button
+            android:id="@+id/btnCalibrate"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Calibrate"
+            android:textColor="@color/accent_cyan"
+            android:layout_marginStart="4dp" />
+
+        <Button
+            android:id="@+id/btnReset"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Clear"
+            android:textColor="@color/accent_magenta"
+            android:layout_marginStart="4dp" />
+    </LinearLayout>
 
     <!-- Real-time Metrics Bar -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="12dp"
+        android:padding="10dp"
         android:background="@color/card_bg">
 
-        <!-- Extracted Temperature Metric -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -96,11 +181,10 @@
                 android:layout_height="wrap_content"
                 android:text="20.0 °C"
                 android:textColor="@color/accent_cyan"
-                android:textSize="18sp"
+                android:textSize="16sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- Diffusion Coefficient Metric -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -120,11 +204,10 @@
                 android:layout_height="wrap_content"
                 android:text="0.00 μm²/s"
                 android:textColor="@color/text_main"
-                android:textSize="18sp"
+                android:textSize="16sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- Mean Hydrodynamic Diameter Metric -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -144,71 +227,171 @@
                 android:layout_height="wrap_content"
                 android:text="1.54 μm"
                 android:textColor="@color/accent_magenta"
-                android:textSize="18sp"
+                android:textSize="16sp"
                 android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Controls Panel -->
-    <LinearLayout
+    <!-- Scrollable Tab Content Panels -->
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="12dp"
-        android:background="#0e1422">
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
 
-        <LinearLayout
+        <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:layout_height="wrap_content">
 
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switchMilkMode"
-                android:layout_width="0dp"
+            <!-- TAB 1: SIMULATOR CONTROLS -->
+            <LinearLayout
+                android:id="@+id/panelSim"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Polydisperse Milk Mode"
-                android:textColor="@color/text_main"
-                android:textSize="13sp"
-                android:checked="true" />
+                android:orientation="vertical"
+                android:padding="12dp">
 
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/switchDriftFix"
-                android:layout_width="0dp"
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switchMilkMode"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Simulate Milk / Polydisperse Size Distribution"
+                    android:textColor="@color/text_main"
+                    android:checked="true" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switchDriftFix"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Subtract Bulk Flow (Drift Correction)"
+                    android:textColor="@color/text_main"
+                    android:checked="true" />
+
+                <TextView
+                    android:id="@+id/tvTempSliderLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Temperature: 20.0 °C"
+                    android:textColor="@color/text_muted"
+                    android:layout_marginTop="8dp" />
+                <SeekBar
+                    android:id="@+id/seekBarTemp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="60"
+                    android:progress="20" />
+
+                <TextView
+                    android:id="@+id/tvViscSliderLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Fluid Viscosity: 1.00 mPa·s"
+                    android:textColor="@color/text_muted"
+                    android:layout_marginTop="8dp" />
+                <SeekBar
+                    android:id="@+id/seekBarVisc"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="100"
+                    android:progress="10" />
+
+                <TextView
+                    android:id="@+id/tvDriftSliderLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Fluid Drift: 0.50 μm/s"
+                    android:textColor="@color/text_muted"
+                    android:layout_marginTop="8dp" />
+                <SeekBar
+                    android:id="@+id/seekBarDrift"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="30"
+                    android:progress="5" />
+            </LinearLayout>
+
+            <!-- TAB 2: LIVE CAMERA CONTROLS -->
+            <LinearLayout
+                android:id="@+id/panelCamera"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Subtract Bulk Flow"
-                android:textColor="@color/text_main"
-                android:textSize="13sp"
-                android:checked="true" />
-        </LinearLayout>
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:visibility="gone">
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="8dp">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📷 Camera Setup"
+                    android:textColor="@color/text_main"
+                    android:textStyle="bold" />
 
-            <Button
-                android:id="@+id/btnToggleTorch"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="0dp"
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Camera is hard-locked to Main 1.0x Rear Lens (LENS_FACING_BACK, zoom=1.0f). Multi-lens flipping and selfie fallback are strictly disabled."
+                    android:textColor="@color/text_muted"
+                    android:textSize="12sp"
+                    android:layout_marginTop="6dp" />
+
+                <Button
+                    android:id="@+id/btnToggleTorch"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Toggle Phone Flashlight / Torch"
+                    android:textColor="@color/accent_cyan"
+                    android:layout_marginTop="12dp" />
+            </LinearLayout>
+
+            <!-- TAB 3: VIDEO FILE CONTROLS -->
+            <LinearLayout
+                android:id="@+id/panelVideo"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Torch Light"
-                android:textColor="@color/accent_cyan" />
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:visibility="gone">
 
-            <Button
-                android:id="@+id/btnResetTracks"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="0dp"
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📁 Analyze Recorded Video File"
+                    android:textColor="@color/text_main"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btnSelectVideo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Select Video File from Phone"
+                    android:textColor="#0b0f19"
+                    android:backgroundTint="@color/accent_cyan"
+                    android:layout_marginTop="12dp" />
+            </LinearLayout>
+
+            <!-- TAB 4: ANALYTICS DASHBOARD -->
+            <LinearLayout
+                android:id="@+id/panelAnalytics"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Clear Tracks"
-                android:textColor="@color/accent_magenta"
-                android:layout_marginStart="8dp" />
-        </LinearLayout>
-    </LinearLayout>
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:visibility="gone">
+
+                <com.brownian.tracker.ui.AnalyticsChartView
+                    android:id="@+id/msdChartView"
+                    android:layout_width="match_parent"
+                    android:layout_height="180dp" />
+
+                <com.brownian.tracker.ui.AnalyticsChartView
+                    android:id="@+id/psdChartView"
+                    android:layout_width="match_parent"
+                    android:layout_height="180dp"
+                    android:layout_marginTop="12dp" />
+            </LinearLayout>
+
+        </FrameLayout>
+    </ScrollView>
 
 </LinearLayout>

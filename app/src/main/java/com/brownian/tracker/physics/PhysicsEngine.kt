@@ -2,8 +2,9 @@ package com.brownian.tracker.physics
 
 import com.brownian.tracker.tracker.ParticleTrack
 import com.brownian.tracker.tracker.Vector2D
-import kotlin.math.abs
 import kotlin.math.hypot
+import kotlin.math.pow
+import kotlin.math.sqrt
 
 const val BOLTZMANN_REF = 1.380649e-23 // J/K
 
@@ -12,6 +13,42 @@ data class CumulativePhysicsResult(
     val T_converged_C: Double,
     val totalSteps: Long,
     val stdErrPercent: Double
+)
+
+data class MsdPoint(val dt: Double, val msd: Double)
+data class MsdResult(
+    val msdPoints: List<MsdPoint>,
+    val slope: Double,
+    val rSquared: Double,
+    val D: Double
+)
+
+data class ParticleSizeResult(
+    val trackId: Int,
+    val D: Double,
+    val diameter: Double,
+    val pointCount: Int
+)
+
+data class SizeHistogram(
+    val bins: List<String>,
+    val counts: List<Int>,
+    val totalCount: Int
+)
+
+data class PolydisperseSizingResult(
+    val individualResults: List<ParticleSizeResult>,
+    val meanDiameter: Double,
+    val medianDiameter: Double,
+    val stdDev: Double,
+    val pdi: Double,
+    val sizeHistogram: SizeHistogram
+)
+
+data class StepDistributionResult(
+    val bins: List<String>,
+    val counts: List<Int>,
+    val totalSteps: Int
 )
 
 class PhysicsEngine {
@@ -59,7 +96,7 @@ class PhysicsEngine {
                     val pureDy = rawDy - driftDy
                     val pureDist = hypot(pureDx.toDouble(), pureDy.toDouble())
 
-                    // Ignore teleports or boundary jumps
+                    // Filter out boundary jumps
                     if (pureDist > 0.0001 && pureDist < 6.0) {
                         val sqDist = pureDx * pureDx + pureDy * pureDy
                         cumulativeSumSqDisplacement += sqDist
@@ -86,7 +123,7 @@ class PhysicsEngine {
         val T_kelvin = (6.0 * Math.PI * etaPascalSec * radiusMeters * D_m2_s) / BOLTZMANN_REF
         val T_converged_C = T_kelvin - 273.15
 
-        val stdErrPercent = Math.max(0.1, 100.0 / Math.sqrt(cumulativeStepCount * 0.4))
+        val stdErrPercent = Math.max(0.1, 100.0 / sqrt(cumulativeStepCount * 0.4))
 
         return CumulativePhysicsResult(
             D_converged = D_converged,
@@ -94,5 +131,215 @@ class PhysicsEngine {
             totalSteps = cumulativeStepCount,
             stdErrPercent = stdErrPercent
         )
+    }
+
+    /**
+     * Calculates Global Ensemble MSD across all trajectories for lag frame fitting
+     */
+    fun calculateMSD(tracks: List<ParticleTrack>, maxLagFrames: Int = 20): MsdResult {
+        if (tracks.isEmpty()) {
+            return MsdResult(emptyList(), 0.0, 0.0, 0.0)
+        }
+
+        val lagSums = DoubleArray(maxLagFrames + 1)
+        val lagCounts = IntArray(maxLagFrames + 1)
+
+        for (track in tracks) {
+            val pts = track.points
+            val len = pts.size
+            if (len < 2) continue
+
+            for (lag in 1..Math.min(maxLagFrames, len - 1)) {
+                for (i in 0 until (len - lag)) {
+                    val dx = (pts[i + lag].x - pts[i].x) * scaleMicronsPerPixel
+                    val dy = (pts[i + lag].y - pts[i].y) * scaleMicronsPerPixel
+                    val dist = hypot(dx.toDouble(), dy.toDouble())
+
+                    if (dist < 6.0 * lag) {
+                        val sqDist = dx * dx + dy * dy
+                        lagSums[lag] = lagSums[lag] + sqDist
+                        lagCounts[lag] = lagCounts[lag] + 1
+                    }
+                }
+            }
+        }
+
+        val msdPoints = mutableListOf<MsdPoint>()
+        val xVals = mutableListOf<Double>()
+        val yVals = mutableListOf<Double>()
+        val dt = 1.0 / Math.max(15, frameRate)
+
+        for (lag in 1..maxLagFrames) {
+            if (lagCounts[lag] > 0) {
+                val deltaTime = lag * dt
+                val msdVal = lagSums[lag] / lagCounts[lag]
+
+                msdPoints.add(MsdPoint(deltaTime, msdVal))
+                xVals.add(deltaTime)
+                yVals.add(msdVal)
+            }
+        }
+
+        if (xVals.size < 2) {
+            return MsdResult(emptyList(), 0.0, 0.0, 0.0)
+        }
+
+        var sumXY = 0.0
+        var sumX2 = 0.0
+        var sumY = 0.0
+        var sumX = 0.0
+        val n = xVals.size
+
+        for (i in 0 until n) {
+            sumXY += xVals[i] * yVals[i]
+            sumX2 += xVals[i] * xVals[i]
+            sumX += xVals[i]
+            sumY += yVals[i]
+        }
+
+        val slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX)
+        val yMean = sumY / n
+        var ssTot = 0.0
+        var ssRes = 0.0
+        for (i in 0 until n) {
+            val yPred = slope * xVals[i]
+            ssRes += (yVals[i] - yPred).pow(2)
+            ssTot += (yVals[i] - yMean).pow(2)
+        }
+        val rSquared = if (ssTot > 0) Math.max(0.0, 1.0 - (ssRes / ssTot)) else 0.0
+        val D = Math.max(0.0, slope / 4.0)
+
+        return MsdResult(msdPoints, slope, rSquared, D)
+    }
+
+    fun calculatePolydisperseSizing(
+        tracks: List<ParticleTrack>,
+        tempCelsius: Double = 20.0,
+        viscosityMpaSec: Double = 1.002,
+        bulkDriftPxPerSec: Vector2D = Vector2D(0f, 0f)
+    ): PolydisperseSizingResult {
+        if (tracks.isEmpty()) {
+            return PolydisperseSizingResult(emptyList(), 0.0, 0.0, 0.0, 0.0, SizeHistogram(emptyList(), emptyList(), 0))
+        }
+
+        val T_kelvin = tempCelsius + 273.15
+        val eta_pascal_sec = viscosityMpaSec * 1e-3
+
+        val individualResults = mutableListOf<ParticleSizeResult>()
+        val diameters = mutableListOf<Double>()
+
+        for (track in tracks) {
+            val pts = track.points
+            if (pts.size < 6) continue
+
+            var sumSqDist = 0.0
+            var totalDt = 0.0
+            var validSteps = 0
+
+            for (i in 1 until pts.size) {
+                val dt = Math.max(0.005, Math.min(0.1, pts[i].t - pts[i - 1].t))
+                val rawDx = (pts[i].x - pts[i - 1].x) * scaleMicronsPerPixel
+                val rawDy = (pts[i].y - pts[i - 1].y) * scaleMicronsPerPixel
+
+                val driftDx = bulkDriftPxPerSec.vx * scaleMicronsPerPixel * dt.toFloat()
+                val driftDy = bulkDriftPxPerSec.vy * scaleMicronsPerPixel * dt.toFloat()
+
+                val pureDx = rawDx - driftDx
+                val pureDy = rawDy - driftDy
+                val pureDist = hypot(pureDx.toDouble(), pureDy.toDouble())
+
+                if (pureDist < 6.0) {
+                    sumSqDist += pureDx * pureDx + pureDy * pureDy
+                    totalDt += dt
+                    validSteps++
+                }
+            }
+
+            if (validSteps >= 5 && totalDt > 0) {
+                val D_i_microns_sq_s = Math.max(0.001, sumSqDist / (4.0 * totalDt))
+                val D_i_m2_s = D_i_microns_sq_s * 1e-12
+
+                val a_i_meters = (BOLTZMANN_REF * T_kelvin) / (6.0 * Math.PI * eta_pascal_sec * D_i_m2_s)
+                val d_i_microns = a_i_meters * 2.0 * 1e6
+
+                if (d_i_microns in 0.05..25.0) {
+                    individualResults.add(ParticleSizeResult(track.id, D_i_microns_sq_s, d_i_microns, pts.size))
+                    diameters.add(d_i_microns)
+                }
+            }
+        }
+
+        if (diameters.isEmpty()) {
+            return PolydisperseSizingResult(emptyList(), 0.0, 0.0, 0.0, 0.0, SizeHistogram(emptyList(), emptyList(), 0))
+        }
+
+        diameters.sort()
+        val meanD = diameters.average()
+        val medianD = diameters[diameters.size / 2]
+
+        val variance = diameters.map { (it - meanD).pow(2) }.average()
+        val stdDev = sqrt(variance)
+        val pdi = (stdDev / meanD).pow(2)
+
+        val minBin = 0.2
+        val maxBin = Math.max(6.0, Math.min(15.0, Math.ceil(diameters.last())))
+        val numBins = 15
+        val binWidth = (maxBin - minBin) / numBins
+        val bins = mutableListOf<String>()
+        val counts = IntArray(numBins)
+
+        for (b in 0 until numBins) {
+            bins.add(String.format("%.2f", (b + 0.5) * binWidth + minBin))
+        }
+
+        for (d in diameters) {
+            val idx = Math.min(numBins - 1, Math.max(0, ((d - minBin) / binWidth).toInt()))
+            counts[idx] = counts[idx] + 1
+        }
+
+        return PolydisperseSizingResult(
+            individualResults = individualResults,
+            meanDiameter = meanD,
+            medianDiameter = medianD,
+            stdDev = stdDev,
+            pdi = pdi,
+            sizeHistogram = SizeHistogram(bins, counts.toList(), diameters.size)
+        )
+    }
+
+    fun calculateStepDistribution(tracks: List<ParticleTrack>, numBins: Int = 12): StepDistributionResult {
+        val stepDistances = mutableListOf<Double>()
+
+        for (t in tracks) {
+            val pts = t.points
+            for (i in 1 until pts.size) {
+                val dx = (pts[i].x - pts[i - 1].x) * scaleMicronsPerPixel
+                val dy = (pts[i].y - pts[i - 1].y) * scaleMicronsPerPixel
+                val dist = hypot(dx.toDouble(), dy.toDouble())
+                if (dist < 6.0) {
+                    stepDistances.add(dist)
+                }
+            }
+        }
+
+        if (stepDistances.isEmpty()) {
+            return StepDistributionResult(emptyList(), emptyList(), 0)
+        }
+
+        val maxDist = Math.max(0.5, stepDistances.maxOrNull() ?: 1.0)
+        val binWidth = maxDist / numBins
+        val bins = mutableListOf<String>()
+        val counts = IntArray(numBins)
+
+        for (i in 0 until numBins) {
+            bins.add(String.format("%.2f", (i + 0.5) * binWidth))
+        }
+
+        for (d in stepDistances) {
+            val binIdx = Math.min(numBins - 1, (d / binWidth).toInt())
+            counts[binIdx] = counts[binIdx] + 1
+        }
+
+        return StepDistributionResult(bins, counts.toList(), stepDistances.size)
     }
 }
