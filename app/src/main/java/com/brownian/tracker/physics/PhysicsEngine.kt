@@ -59,9 +59,9 @@ class PhysicsEngine {
     }
 
     /**
-     * ISO 19437 Standard NTA Lag-MSD Temperature Extraction:
-     * Fits MSD(Δτ) = 4*D*Δτ + 4*σ_noise² across multi-frame lag times Δτ (2 to 10 frames).
-     * The linear slope extracts true diffusion coefficient D completely free of static sub-pixel detection jitter!
+     * ISO 19437 Standard NTA Drift-Corrected Lag-MSD Temperature Extraction:
+     * Subtracts directional drift v_drift * Δt to eliminate the quadratic v_drift² * Δt² term,
+     * then fits linear slope of MSD_pure(Δτ) = 4*D*Δτ + 4*σ_noise² across lags Δτ = 1..5.
      */
     @Synchronized
     fun accumulateSteps(
@@ -71,14 +71,14 @@ class PhysicsEngine {
     ): CumulativePhysicsResult {
         val etaPascalSec = 1.002e-3 // Water viscosity at 20°C (1.002 mPa·s)
 
-        val msdResult = calculateMSD(tracks, maxLagFrames = 10)
+        val msdResult = calculateMSD(tracks, maxLagFrames = 5, bulkDriftPxPerSec = bulkDriftPxPerSec)
         cumulativeStepCount += tracks.sumOf { synchronized(it) { it.points.size } }
 
-        if (msdResult.msdPoints.size < 3 || msdResult.D <= 0.0) {
+        if (msdResult.msdPoints.size < 2 || msdResult.D <= 0.0) {
             return CumulativePhysicsResult(0.0, 20.0, cumulativeStepCount, 100.0)
         }
 
-        // True Noise-Corrected Diffusion Coefficient D in μm²/s from MSD slope: D = slope / 4
+        // True Drift-Free, Noise-Free Diffusion Coefficient D in μm²/s from MSD slope: D = slope / 4
         val D_converged = msdResult.D
         val D_m2_s = D_converged * 1e-12
         val radiusMeters = referenceRadiusMicrons * 1e-6
@@ -121,20 +121,26 @@ class PhysicsEngine {
 
         for (track in tracks) {
             val pts = synchronized(track) { ArrayList(track.points) }
-            if (pts.size < 8) continue
+            if (pts.size < 6) continue
 
-            // Fit individual track MSD slope to eliminate detection jitter
             val lagSums = DoubleArray(6)
             val lagCounts = IntArray(6)
 
-            for (lag in 1..5) {
+            for (lag in 1..4) {
                 for (i in 0 until (pts.size - lag)) {
-                    val dx = (pts[i + lag].x - pts[i].x) * scaleMicronsPerPixel
-                    val dy = (pts[i + lag].y - pts[i].y) * scaleMicronsPerPixel
-                    val dist = hypot(dx.toDouble(), dy.toDouble())
+                    val dt = Math.max(0.005, pts[i + lag].t - pts[i].t)
+                    val rawDx = (pts[i + lag].x - pts[i].x) * scaleMicronsPerPixel
+                    val rawDy = (pts[i + lag].y - pts[i].y) * scaleMicronsPerPixel
+
+                    val driftDx = bulkDriftPxPerSec.vx * scaleMicronsPerPixel * dt.toFloat()
+                    val driftDy = bulkDriftPxPerSec.vy * scaleMicronsPerPixel * dt.toFloat()
+
+                    val pureDx = rawDx - driftDx
+                    val pureDy = rawDy - driftDy
+                    val dist = hypot(pureDx.toDouble(), pureDy.toDouble())
 
                     if (dist < 2.5 * lag) {
-                        lagSums[lag] = lagSums[lag] + (dx * dx + dy * dy)
+                        lagSums[lag] = lagSums[lag] + (pureDx * pureDx + pureDy * pureDy)
                         lagCounts[lag] = lagCounts[lag] + 1
                     }
                 }
@@ -145,11 +151,11 @@ class PhysicsEngine {
             var sumY = 0.0
             var sumX = 0.0
             var n = 0
-            val dt = 1.0 / Math.max(15, frameRate)
+            val dtUnit = 1.0 / Math.max(15, frameRate)
 
-            for (lag in 1..5) {
+            for (lag in 1..4) {
                 if (lagCounts[lag] > 0) {
-                    val tVal = lag * dt
+                    val tVal = lag * dtUnit
                     val msdVal = lagSums[lag] / lagCounts[lag]
                     sumXY += tVal * msdVal
                     sumX2 += tVal * tVal
@@ -159,8 +165,8 @@ class PhysicsEngine {
                 }
             }
 
-            if (n >= 3) {
-                val slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX)
+            if (n >= 2) {
+                val slope = (n * sumXY - sumX * sumY) / Math.max(1e-6, (n * sumX2 - sumX * sumX))
                 val D_i_microns_sq_s = Math.max(0.001, slope / 4.0)
                 val D_i_m2_s = D_i_microns_sq_s * 1e-12
 
@@ -213,10 +219,14 @@ class PhysicsEngine {
     }
 
     /**
-     * Calculates Global Ensemble MSD across all trajectories for lag frame fitting
+     * Calculates Global Ensemble MSD across all trajectories with Directional Drift Subtraction
      */
     @Synchronized
-    fun calculateMSD(tracks: List<ParticleTrack>, maxLagFrames: Int = 10): MsdResult {
+    fun calculateMSD(
+        tracks: List<ParticleTrack>,
+        maxLagFrames: Int = 5,
+        bulkDriftPxPerSec: Vector2D = Vector2D(0f, 0f)
+    ): MsdResult {
         if (tracks.isEmpty()) {
             return MsdResult(emptyList(), 0.0, 0.0, 0.0)
         }
@@ -231,12 +241,19 @@ class PhysicsEngine {
 
             for (lag in 1..Math.min(maxLagFrames, len - 1)) {
                 for (i in 0 until (len - lag)) {
-                    val dx = (pts[i + lag].x - pts[i].x) * scaleMicronsPerPixel
-                    val dy = (pts[i + lag].y - pts[i].y) * scaleMicronsPerPixel
-                    val dist = hypot(dx.toDouble(), dy.toDouble())
+                    val dt = Math.max(0.005, pts[i + lag].t - pts[i].t)
+                    val rawDx = (pts[i + lag].x - pts[i].x) * scaleMicronsPerPixel
+                    val rawDy = (pts[i + lag].y - pts[i].y) * scaleMicronsPerPixel
+
+                    val driftDx = bulkDriftPxPerSec.vx * scaleMicronsPerPixel * dt.toFloat()
+                    val driftDy = bulkDriftPxPerSec.vy * scaleMicronsPerPixel * dt.toFloat()
+
+                    val pureDx = rawDx - driftDx
+                    val pureDy = rawDy - driftDy
+                    val dist = hypot(pureDx.toDouble(), pureDy.toDouble())
 
                     if (dist < 2.5 * lag) {
-                        val sqDist = dx * dx + dy * dy
+                        val sqDist = pureDx * pureDx + pureDy * pureDy
                         lagSums[lag] = lagSums[lag] + sqDist
                         lagCounts[lag] = lagCounts[lag] + 1
                     }
@@ -247,11 +264,11 @@ class PhysicsEngine {
         val msdPoints = mutableListOf<MsdPoint>()
         val xVals = mutableListOf<Double>()
         val yVals = mutableListOf<Double>()
-        val dt = 1.0 / Math.max(15, frameRate)
+        val dtUnit = 1.0 / Math.max(15, frameRate)
 
         for (lag in 1..maxLagFrames) {
             if (lagCounts[lag] > 0) {
-                val deltaTime = lag * dt
+                val deltaTime = lag * dtUnit
                 val msdVal = lagSums[lag] / lagCounts[lag]
 
                 msdPoints.add(MsdPoint(deltaTime, msdVal))
@@ -277,7 +294,8 @@ class PhysicsEngine {
             sumY += yVals[i]
         }
 
-        val slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX)
+        val denom = n * sumX2 - sumX * sumX
+        val slope = if (Math.abs(denom) > 1e-6) (n * sumXY - sumX * sumY) / denom else 0.0
         val yMean = sumY / n
         var ssTot = 0.0
         var ssRes = 0.0
