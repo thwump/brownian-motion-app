@@ -35,7 +35,7 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
     fun initParticles() {
         particles.clear()
         for (i in 0 until numParticles) {
-            particles.add(createRandomParticle())
+            particles.add(createInitialParticle(i))
         }
     }
 
@@ -57,7 +57,7 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
         return particles.map { it.radiusMicrons * 2.0 }.average()
     }
 
-    private fun createRandomParticle(): SimulatedParticle {
+    private fun createInitialParticle(index: Int): SimulatedParticle {
         var rMicrons = particleRadiusMicrons
 
         if (isPolydisperse) {
@@ -68,23 +68,11 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
             rMicrons = Math.max(0.8, Math.min(3.5, exp(ln(1.5) + 0.4 * z)))
         }
 
-        // Spawns particles widely spaced out (min 120px separation)
-        var px: Double
-        var py: Double
-        var attempts = 0
-        do {
-            px = (random.nextDouble() * (width - 160) + 80.0)
-            py = (random.nextDouble() * (height - 160) + 80.0)
-            attempts++
-
-            var tooClose = false
-            for (p in particles) {
-                if (hypot(px - p.x, py - p.y) < 120.0) {
-                    tooClose = true
-                    break
-                }
-            }
-        } while (tooClose && attempts < 100)
+        // Uniform grid placement for instant, crash-free initialization
+        val col = index % 4
+        val row = index / 4
+        val px = (col + 1) * (width / 5.0)
+        val py = (row + 1) * (height / 3.0)
 
         val p = SimulatedParticle(x = px, y = py, radiusMicrons = rMicrons)
         for (k in 0 until 30) {
@@ -137,7 +125,7 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
                 val dy = p2.y - p1.y
                 val dist = hypot(dx, dy)
 
-                val minDistPx = Math.max(30.0, ((p1.radiusMicrons + p2.radiusMicrons) / scaleMicronsPerPixel) * 0.8)
+                val minDistPx = Math.max(30.0, ((p1.radiusMicrons + p2.radiusMicrons) / scaleMicronsPerPixel) * 0.6)
 
                 if (dist < minDistPx && dist > 0.001) {
                     val overlap = minDistPx - dist
@@ -152,12 +140,14 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
             }
         }
 
-        // 3. Boundary Respawn Handling
+        // 3. Elastic Wall Reflection (Fast, 0 CPU Overhead - Prevents Freezing)
         for (i in particles.indices) {
             val p = particles[i]
-            if (p.x < 10.0 || p.x > width - 10.0 || p.y < 10.0 || p.y > height - 10.0) {
-                particles[i] = createRandomParticle()
-            }
+            val margin = 30.0
+            if (p.x < margin) p.x = margin
+            if (p.x > width - margin) p.x = width - margin
+            if (p.y < margin) p.y = margin
+            if (p.y > height - margin) p.y = height - margin
         }
     }
 
