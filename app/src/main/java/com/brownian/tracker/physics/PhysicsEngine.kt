@@ -50,22 +50,25 @@ class PhysicsEngine {
     var scaleMicronsPerPixel: Float = 0.15f
     var frameRate: Int = 60
 
+    // True Infinite Step Accumulators (N -> ∞)
     @Volatile
-    private var cumulativeStepCount = 0L
-
-    // Default reference D at 20°C for 1.0μm particle: 0.2144 μm²/s
+    private var totalCumulativeSumSqDisplacement = 0.0 // μm²
     @Volatile
-    private var runningEmaD: Double = 0.2144
+    private var totalCumulativeSumTimeSeconds = 0.0    // seconds
+    @Volatile
+    private var totalCumulativeSteps = 0L
 
     @Synchronized
     fun resetAccumulators() {
-        cumulativeStepCount = 0L
-        runningEmaD = 0.2144
+        totalCumulativeSumSqDisplacement = 0.0
+        totalCumulativeSumTimeSeconds = 0.0
+        totalCumulativeSteps = 0L
     }
 
     /**
-     * ISO 19437 Standard NTA Exponential Moving Average (EMA) Temperature Accumulator:
-     * Maintains smooth, rock-solid stable temperature convergence without initial spikes on startup or clear.
+     * True Infinite Historical Step Accumulator (N -> ∞):
+     * Accumulates ALL step displacements across time without discarding history.
+     * As N grows (10k -> 100k -> 1M steps), error shrinks as 1/sqrt(N) and T converges to exact truth.
      */
     @Synchronized
     fun accumulateSteps(
@@ -75,21 +78,45 @@ class PhysicsEngine {
     ): CumulativePhysicsResult {
         val etaPascalSec = 1.002e-3 // Water viscosity at 20°C (1.002 mPa·s)
 
-        // Require tracks to have accumulated at least 8 points before processing
-        val validTracks = tracks.filter { synchronized(it) { it.points.size >= 8 } }
-        val stepDelta = validTracks.sumOf { synchronized(it) { it.points.size } }.toLong()
-        cumulativeStepCount += stepDelta
+        for (track in tracks) {
+            val pts = synchronized(track) { ArrayList(track.points) }
+            if (pts.size < 2) continue
 
-        if (validTracks.size >= 3) {
-            val msdResult = calculateMSD(validTracks, maxLagFrames = 10, bulkDriftPxPerSec = bulkDriftPxPerSec)
-            if (msdResult.msdPoints.size >= 3 && msdResult.D in 0.01..5.0) {
-                val instantaneousD = msdResult.D
-                // Heavy Exponential Moving Average filter (α = 0.05) for rock-solid startup stability
-                runningEmaD = runningEmaD * 0.95 + instantaneousD * 0.05
+            val lastTime = track.lastAccumulatedTime
+
+            for (i in 1 until pts.size) {
+                if (pts[i].t > lastTime) {
+                    val dt = Math.max(0.005, Math.min(0.1, pts[i].t - pts[i - 1].t))
+
+                    val rawDx = (pts[i].x - pts[i - 1].x) * scaleMicronsPerPixel
+                    val rawDy = (pts[i].y - pts[i - 1].y) * scaleMicronsPerPixel
+
+                    val driftDx = bulkDriftPxPerSec.vx * scaleMicronsPerPixel * dt.toFloat()
+                    val driftDy = bulkDriftPxPerSec.vy * scaleMicronsPerPixel * dt.toFloat()
+
+                    val pureDx = (rawDx - driftDx).toDouble()
+                    val pureDy = (rawDy - driftDy).toDouble()
+                    val pureDist = hypot(pureDx, pureDy)
+
+                    // Accumulate into infinite history buffers
+                    if (pureDist in 0.001..3.0) {
+                        val sqDist = pureDx * pureDx + pureDy * pureDy
+                        totalCumulativeSumSqDisplacement += sqDist
+                        totalCumulativeSumTimeSeconds += dt
+                        totalCumulativeSteps++
+                    }
+
+                    track.lastAccumulatedTime = pts[i].t
+                }
             }
         }
 
-        val D_converged = runningEmaD
+        if (totalCumulativeSteps < 5 || totalCumulativeSumTimeSeconds <= 0.0) {
+            return CumulativePhysicsResult(0.2144, 20.0, totalCumulativeSteps, 100.0)
+        }
+
+        // Exact Cumulative Diffusion Coefficient D = <Σ Δr²> / (4 * <Σ Δt>)
+        val D_converged = Math.max(0.001, totalCumulativeSumSqDisplacement / (4.0 * totalCumulativeSumTimeSeconds))
         val D_m2_s = D_converged * 1e-12
         val radiusMeters = referenceRadiusMicrons * 1e-6
 
@@ -97,12 +124,13 @@ class PhysicsEngine {
         val T_kelvin = (6.0 * Math.PI * etaPascalSec * radiusMeters * D_m2_s) / BOLTZMANN_REF
         val T_converged_C = T_kelvin - 273.15
 
-        val stdErrPercent = Math.max(0.1, 100.0 / sqrt(Math.max(1L, cumulativeStepCount) * 0.4))
+        // Statistical standard error shrinks as 1 / sqrt(N)
+        val stdErrPercent = Math.max(0.01, 100.0 / sqrt(totalCumulativeSteps.toDouble()))
 
         return CumulativePhysicsResult(
             D_converged = D_converged,
             T_converged_C = T_converged_C,
-            totalSteps = cumulativeStepCount,
+            totalSteps = totalCumulativeSteps,
             stdErrPercent = stdErrPercent
         )
     }
@@ -130,7 +158,7 @@ class PhysicsEngine {
 
         for (track in tracks) {
             val pts = synchronized(track) { ArrayList(track.points) }
-            if (pts.size < 8) continue
+            if (pts.size < 6) continue
 
             val maxLag = Math.min(8, pts.size / 2)
             val lagSums = DoubleArray(maxLag + 1)
