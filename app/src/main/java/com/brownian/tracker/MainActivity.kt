@@ -122,7 +122,7 @@ class MainActivity : AppCompatActivity() {
             tracker.reset()
             physics.resetAccumulators()
             simulator.initParticles()
-            updateUI(0.0, 20.0, 1.54)
+            updateUI(0.0, 20.0, 1.54, 0, 100.0)
         }
 
         binding.btnCalibrate.setOnClickListener {
@@ -306,7 +306,7 @@ class MainActivity : AppCompatActivity() {
         val cumul = physics.accumulateSteps(tracks, driftPxPerSec, refRadius)
 
         runOnUiThread {
-            updateUI(cumul.D_converged, cumul.T_converged_C, if (isPoly) 1.54 else 2.0)
+            updateUI(cumul.D_converged, cumul.T_converged_C, if (isPoly) 1.54 else 2.0, cumul.totalSteps, cumul.stdErrPercent)
             if (activeMode == "analytics") {
                 updateAnalyticsDashboard()
             }
@@ -328,9 +328,9 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun updateUI(D: Double, tempC: Double, meanDiam: Double) {
+    private fun updateUI(D: Double, tempC: Double, meanDiam: Double, totalSteps: Long = 0, stdErr: Double = 0.0) {
         binding.tvDiffVal.text = String.format("%.3f μm²/s", D)
-        binding.tvTempVal.text = String.format("%.1f °C", tempC)
+        binding.tvTempVal.text = String.format("%.1f °C (±%.1f%%, N=%d)", tempC, stdErr, totalSteps)
         binding.tvSizeVal.text = String.format("%.2f μm", meanDiam)
     }
 

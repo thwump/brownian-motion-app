@@ -55,10 +55,14 @@ class PhysicsEngine {
     var scaleMicronsPerPixel: Float = 0.1f // μm/px
     var frameRate: Int = 60
 
+    @Volatile
     private var cumulativeSumSqDisplacement = 0.0 // μm²
+    @Volatile
     private var cumulativeSumTimeSeconds = 0.0    // seconds
+    @Volatile
     private var cumulativeStepCount = 0L
 
+    @Synchronized
     fun resetAccumulators() {
         cumulativeSumSqDisplacement = 0.0
         cumulativeSumTimeSeconds = 0.0
@@ -66,9 +70,28 @@ class PhysicsEngine {
     }
 
     /**
+     * Direct Single Step Accumulator (Never loses historical steps):
+     */
+    @Synchronized
+    fun accumulateSingleStep(
+        pureDxMicrons: Double,
+        pureDyMicrons: Double,
+        dtSeconds: Double
+    ) {
+        val pureDist = hypot(pureDxMicrons, pureDyMicrons)
+        if (pureDist in 0.0001..6.0 && dtSeconds in 0.005..0.1) {
+            val sqDist = pureDxMicrons * pureDxMicrons + pureDyMicrons * pureDyMicrons
+            cumulativeSumSqDisplacement += sqDist
+            cumulativeSumTimeSeconds += dtSeconds
+            cumulativeStepCount++
+        }
+    }
+
+    /**
      * Joint Maximum Likelihood Solver:
      * Accumulates per-step displacements and solves for Temperature T in °C.
      */
+    @Synchronized
     fun accumulateSteps(
         tracks: List<ParticleTrack>,
         bulkDriftPxPerSec: Vector2D = Vector2D(0f, 0f),
@@ -77,7 +100,7 @@ class PhysicsEngine {
         val etaPascalSec = 1.002e-3 // Water viscosity at 20°C (1.002 mPa·s)
 
         for (track in tracks) {
-            val pts = track.points
+            val pts = synchronized(track) { ArrayList(track.points) }
             if (pts.size < 2) continue
 
             val lastTime = track.lastAccumulatedTime
@@ -92,25 +115,18 @@ class PhysicsEngine {
                     val driftDx = bulkDriftPxPerSec.vx * scaleMicronsPerPixel * dt.toFloat()
                     val driftDy = bulkDriftPxPerSec.vy * scaleMicronsPerPixel * dt.toFloat()
 
-                    val pureDx = rawDx - driftDx
-                    val pureDy = rawDy - driftDy
-                    val pureDist = hypot(pureDx.toDouble(), pureDy.toDouble())
+                    val pureDx = (rawDx - driftDx).toDouble()
+                    val pureDy = (rawDy - driftDy).toDouble()
 
-                    // Filter out boundary jumps
-                    if (pureDist > 0.0001 && pureDist < 6.0) {
-                        val sqDist = pureDx * pureDx + pureDy * pureDy
-                        cumulativeSumSqDisplacement += sqDist
-                        cumulativeSumTimeSeconds += dt
-                        cumulativeStepCount++
-                    }
+                    accumulateSingleStep(pureDx, pureDy, dt)
 
                     track.lastAccumulatedTime = pts[i].t
                 }
             }
         }
 
-        if (cumulativeStepCount < 10 || cumulativeSumTimeSeconds <= 0) {
-            return CumulativePhysicsResult(0.0, 20.0, 0, 100.0)
+        if (cumulativeStepCount < 5 || cumulativeSumTimeSeconds <= 0) {
+            return CumulativePhysicsResult(0.0, 20.0, cumulativeStepCount, 100.0)
         }
 
         // Ensemble 2D Thermal Diffusion Coefficient D = <Δr_pure²> / (4 * <Δt>)
@@ -136,6 +152,7 @@ class PhysicsEngine {
     /**
      * Calculates Global Ensemble MSD across all trajectories for lag frame fitting
      */
+    @Synchronized
     fun calculateMSD(tracks: List<ParticleTrack>, maxLagFrames: Int = 20): MsdResult {
         if (tracks.isEmpty()) {
             return MsdResult(emptyList(), 0.0, 0.0, 0.0)
@@ -145,7 +162,7 @@ class PhysicsEngine {
         val lagCounts = IntArray(maxLagFrames + 1)
 
         for (track in tracks) {
-            val pts = track.points
+            val pts = synchronized(track) { ArrayList(track.points) }
             val len = pts.size
             if (len < 2) continue
 
@@ -212,6 +229,7 @@ class PhysicsEngine {
         return MsdResult(msdPoints, slope, rSquared, D)
     }
 
+    @Synchronized
     fun calculatePolydisperseSizing(
         tracks: List<ParticleTrack>,
         tempCelsius: Double = 20.0,
@@ -229,7 +247,7 @@ class PhysicsEngine {
         val diameters = mutableListOf<Double>()
 
         for (track in tracks) {
-            val pts = track.points
+            val pts = synchronized(track) { ArrayList(track.points) }
             if (pts.size < 6) continue
 
             var sumSqDist = 0.0
@@ -305,41 +323,5 @@ class PhysicsEngine {
             pdi = pdi,
             sizeHistogram = SizeHistogram(bins, counts.toList(), diameters.size)
         )
-    }
-
-    fun calculateStepDistribution(tracks: List<ParticleTrack>, numBins: Int = 12): StepDistributionResult {
-        val stepDistances = mutableListOf<Double>()
-
-        for (t in tracks) {
-            val pts = t.points
-            for (i in 1 until pts.size) {
-                val dx = (pts[i].x - pts[i - 1].x) * scaleMicronsPerPixel
-                val dy = (pts[i].y - pts[i - 1].y) * scaleMicronsPerPixel
-                val dist = hypot(dx.toDouble(), dy.toDouble())
-                if (dist < 6.0) {
-                    stepDistances.add(dist)
-                }
-            }
-        }
-
-        if (stepDistances.isEmpty()) {
-            return StepDistributionResult(emptyList(), emptyList(), 0)
-        }
-
-        val maxDist = Math.max(0.5, stepDistances.maxOrNull() ?: 1.0)
-        val binWidth = maxDist / numBins
-        val bins = mutableListOf<String>()
-        val counts = IntArray(numBins)
-
-        for (i in 0 until numBins) {
-            bins.add(String.format("%.2f", (i + 0.5) * binWidth))
-        }
-
-        for (d in stepDistances) {
-            val binIdx = Math.min(numBins - 1, (d / binWidth).toInt())
-            counts[binIdx] = counts[binIdx] + 1
-        }
-
-        return StepDistributionResult(bins, counts.toList(), stepDistances.size)
     }
 }
