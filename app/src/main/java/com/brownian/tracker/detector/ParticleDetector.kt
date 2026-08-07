@@ -12,8 +12,8 @@ data class DetectedParticle(
 
 class ParticleDetector {
     var minThreshold: Int = 30
-    var minParticleRadius: Int = 2
-    var maxParticleRadius: Int = 35
+    var minParticleRadius: Int = 3
+    var maxParticleRadius: Int = 50
     var invert: Boolean = true
 
     fun detectParticles(
@@ -28,8 +28,8 @@ class ParticleDetector {
         val yData = ByteArray(yBuffer.remaining())
         yBuffer.get(yData)
 
-        // Downsample grid step for high-resolution processing speed
-        val step = 2
+        // Strided step dynamically tuned to image width (e.g. step = 4 for 12.5 MP 4080x3072)
+        val step = if (width > 2000) 4 else 2
         val labels = IntArray(width * height)
         var currentLabel = 1
 
@@ -42,7 +42,7 @@ class ParticleDetector {
                 if (targetVal > minThreshold) {
                     val idx = y * width + x
                     if (labels[idx] == 0) {
-                        // Region growing / Flood fill for centroid extraction
+                        // High-speed sub-pixel centroid flood fill
                         var sumX = 0.0
                         var sumY = 0.0
                         var totalIntensity = 0.0
@@ -52,8 +52,8 @@ class ParticleDetector {
                         var minY = y
                         var maxY = y
 
-                        val queueX = IntArray(256)
-                        val queueY = IntArray(256)
+                        val queueX = IntArray(512)
+                        val queueY = IntArray(512)
                         var head = 0
                         var tail = 0
 
@@ -62,7 +62,7 @@ class ParticleDetector {
                         tail++
                         labels[idx] = currentLabel
 
-                        while (head < tail && pixelCount < 500) {
+                        while (head < tail && pixelCount < 1000) {
                             val qx = queueX[head]
                             val qy = queueY[head]
                             head++
@@ -80,7 +80,6 @@ class ParticleDetector {
                             if (qy < minY) minY = qy
                             if (qy > maxY) maxY = qy
 
-                            // 4-neighborhood search
                             val dxs = intArrayOf(-step, step, 0, 0)
                             val dys = intArrayOf(0, 0, -step, step)
 

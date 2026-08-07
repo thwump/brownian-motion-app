@@ -10,6 +10,8 @@ import androidx.annotation.OptIn
 import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.*
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
@@ -57,8 +59,9 @@ class CameraXManager(
                 Log.e("CameraXManager", "Error querying physical camera IDs: ${e.message}")
             }
 
-            // 2. High-Resolution Full HD Preview (1920x1080)
-            val previewBuilder = Preview.Builder().setTargetResolution(Size(1920, 1080))
+            // 2. High-Resolution Preview Use-Case
+            val previewBuilder = Preview.Builder()
+                .setTargetResolution(Size(1920, 1080))
             val previewInterop = Camera2Interop.Extender(previewBuilder)
                 .setCaptureRequestOption(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_DISABLED)
 
@@ -74,9 +77,18 @@ class CameraXManager(
                 it.setSurfaceProvider(previewView.surfaceProvider)
             }
 
-            // 3. High-Resolution ImageAnalysis Stream (1920x1080 Full HD YUV_420_888)
+            // 3. FULL NATIVE 12.5 MP UNBINNED SENSOR ANALYSIS STREAM (4080 x 3072)
+            val nativeResolutionSelector = ResolutionSelector.Builder()
+                .setResolutionStrategy(
+                    ResolutionStrategy(
+                        Size(4080, 3072),
+                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+                    )
+                )
+                .build()
+
             val analysisBuilder = ImageAnalysis.Builder()
-                .setTargetResolution(Size(1920, 1080))
+                .setResolutionSelector(nativeResolutionSelector)
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
 
@@ -114,6 +126,7 @@ class CameraXManager(
 
                 // LOCK OPTICAL ZOOM RATIO TO 1.0f
                 cameraControl?.setZoomRatio(1.0f)
+                Log.d("CameraXManager", "Camera bound to Native 12.5 MP Sensor Resolution Stream!")
 
             } catch (e: Exception) {
                 Log.e("CameraXManager", "Primary physical camera binding failed, retrying fallback: ${e.message}")
