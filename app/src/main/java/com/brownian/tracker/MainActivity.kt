@@ -40,7 +40,7 @@ class MainActivity : AppCompatActivity() {
 
     private var activeMode = "sim" // "sim", "camera", "video"
     private var isPaused = false
-    private var lastFrameTimestamp = SystemClock.elapsedRealtime()
+    private var lastSimTimeSec = System.currentTimeMillis() / 1000.0
     private var frameCounter = 0
     private var simScheduler: ScheduledExecutorService? = null
     private var simBitmap: Bitmap? = null
@@ -100,6 +100,7 @@ class MainActivity : AppCompatActivity() {
             }
         } else if (mode == "sim") {
             binding.tvStatusHud.text = "Tracking • Physics Simulator Active"
+            detector.invert = true
             if (::cameraManager.isInitialized) cameraManager.shutdown()
             startSimulationLoop()
         } else if (mode == "analytics") {
@@ -205,13 +206,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun startSimulationLoop() {
         stopSimulationLoop()
+        lastSimTimeSec = System.currentTimeMillis() / 1000.0
         simScheduler = Executors.newSingleThreadScheduledExecutor()
+
         simScheduler?.scheduleAtFixedRate({
             if (isPaused || activeMode != "sim") return@scheduleAtFixedRate
 
-            val nowTime = SystemClock.elapsedRealtime()
-            val dtSec = Math.max(0.001, (nowTime - lastFrameTimestamp) / 1000.0)
-            lastFrameTimestamp = nowTime
+            val nowSec = System.currentTimeMillis() / 1000.0
+            val dtSec = Math.max(0.005, Math.min(0.05, nowSec - lastSimTimeSec))
+            lastSimTimeSec = nowSec
             frameCounter++
 
             simulator.update(dtSec)
@@ -222,7 +225,6 @@ class MainActivity : AppCompatActivity() {
                 val height = bmp.height
 
                 val detections = detector.detectParticles(yBuffer, width, height, width)
-                val nowSec = System.currentTimeMillis() / 1000.0
                 val tracks = tracker.update(detections, nowSec)
 
                 runOnUiThread {
@@ -230,7 +232,7 @@ class MainActivity : AppCompatActivity() {
                     binding.overlayView.updateData(detections, tracks, width, height)
                 }
 
-                if (frameCounter % 10 == 0) {
+                if (frameCounter % 5 == 0) {
                     processAnalytics(tracks)
                 }
             }
@@ -253,9 +255,7 @@ class MainActivity : AppCompatActivity() {
                 return@CameraXManager
             }
 
-            val nowTime = SystemClock.elapsedRealtime()
-            val dtSec = Math.max(0.001, (nowTime - lastFrameTimestamp) / 1000.0)
-            lastFrameTimestamp = nowTime
+            val nowSec = System.currentTimeMillis() / 1000.0
             frameCounter++
 
             val plane = imageProxy.planes[0]
@@ -265,12 +265,11 @@ class MainActivity : AppCompatActivity() {
             val rowStride = plane.rowStride
 
             val detections = detector.detectParticles(yBuffer, width, height, rowStride)
-            val nowSec = System.currentTimeMillis() / 1000.0
             val tracks = tracker.update(detections, nowSec)
 
             binding.overlayView.updateData(detections, tracks, width, height)
 
-            if (frameCounter % 10 == 0) {
+            if (frameCounter % 5 == 0) {
                 processAnalytics(tracks)
             }
 
@@ -296,7 +295,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun processAnalytics(tracks: List<com.brownian.tracker.tracker.ParticleTrack>) {
         val isPoly = binding.switchMilkMode.isChecked
-        val refRadius = if (isPoly) 0.77 else 1.0
+        val refRadius = if (isPoly) 0.7704 else simulator.particleRadiusMicrons
 
         val driftPxPerSec = Vector2D(
             tracker.bulkDriftVector.vx * 60f,
@@ -306,7 +305,7 @@ class MainActivity : AppCompatActivity() {
         val cumul = physics.accumulateSteps(tracks, driftPxPerSec, refRadius)
 
         runOnUiThread {
-            updateUI(cumul.D_converged, cumul.T_converged_C, if (isPoly) 1.54 else 2.0, cumul.totalSteps, cumul.stdErrPercent)
+            updateUI(cumul.D_converged, cumul.T_converged_C, if (isPoly) 1.54 else (simulator.particleRadiusMicrons * 2), cumul.totalSteps, cumul.stdErrPercent)
             if (activeMode == "analytics") {
                 updateAnalyticsDashboard()
             }

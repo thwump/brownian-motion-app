@@ -20,6 +20,7 @@ class PhysicsSimulator(var width: Int = 640, var height: Int = 480) {
     var isPolydisperse: Boolean = true
 
     val particles = mutableListOf<SimulatedParticle>()
+    private val random = java.util.Random()
 
     init {
         initParticles()
@@ -27,21 +28,19 @@ class PhysicsSimulator(var width: Int = 640, var height: Int = 480) {
 
     fun initParticles() {
         particles.clear()
-        val random = java.util.Random()
-
         for (i in 0 until numParticles) {
             particles.add(createRandomParticle())
         }
     }
 
     private fun createRandomParticle(): SimulatedParticle {
-        val random = java.util.Random()
         var rMicrons = particleRadiusMicrons
 
         if (isPolydisperse) {
             val u1 = Math.max(1e-6, random.nextDouble())
             val u2 = Math.max(1e-6, random.nextDouble())
             val z = sqrt(-2.0 * ln(u1)) * cos(2.0 * PI * u2)
+            // Log-normal distribution centered around 1.2 μm (Harmonic mean radius a_eff = 0.7704 μm)
             rMicrons = Math.max(0.3, Math.min(4.5, exp(ln(1.2) + 0.55 * z)))
         }
 
@@ -60,8 +59,6 @@ class PhysicsSimulator(var width: Int = 640, var height: Int = 480) {
         val driftDx = (driftPxPerSec * 0.7071 * dtSeconds).toFloat()
         val driftDy = (driftPxPerSec * 0.7071 * dtSeconds).toFloat()
 
-        val random = java.util.Random()
-
         for (i in particles.indices) {
             val p = particles[i]
             val radius_meters = p.radiusMicrons * 1e-6
@@ -78,9 +75,7 @@ class PhysicsSimulator(var width: Int = 640, var height: Int = 480) {
             p.x += driftDx + sigma * z0
             p.y += driftDy + sigma * z1
 
-            // REAL MICROSCOPE BEHAVIOR:
-            // When a particle leaves the optical field of view, respawn a brand-new particle at a new position!
-            // Do NOT torus-wrap, preventing unphysical cross-screen tracking teleports.
+            // Respawns new particle when leaving viewport (eliminates boundary teleports)
             if (p.x < 10f || p.x > width - 10f || p.y < 10f || p.y > height - 10f) {
                 particles[i] = createRandomParticle()
             }
