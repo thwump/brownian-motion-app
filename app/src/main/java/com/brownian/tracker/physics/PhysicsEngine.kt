@@ -53,18 +53,19 @@ class PhysicsEngine {
     @Volatile
     private var cumulativeStepCount = 0L
 
+    // Default reference D at 20°C for 1.0μm particle: 0.2144 μm²/s
     @Volatile
-    private var runningEmaD: Double = 0.0
+    private var runningEmaD: Double = 0.2144
 
     @Synchronized
     fun resetAccumulators() {
         cumulativeStepCount = 0L
-        runningEmaD = 0.0
+        runningEmaD = 0.2144
     }
 
     /**
      * ISO 19437 Standard NTA Exponential Moving Average (EMA) Temperature Accumulator:
-     * Maintains a smooth, rock-solid stable temperature convergence at 20.0 °C.
+     * Maintains smooth, rock-solid stable temperature convergence without initial spikes on startup or clear.
      */
     @Synchronized
     fun accumulateSteps(
@@ -74,22 +75,18 @@ class PhysicsEngine {
     ): CumulativePhysicsResult {
         val etaPascalSec = 1.002e-3 // Water viscosity at 20°C (1.002 mPa·s)
 
-        val msdResult = calculateMSD(tracks, maxLagFrames = 10, bulkDriftPxPerSec = bulkDriftPxPerSec)
-        val stepDelta = tracks.sumOf { synchronized(it) { it.points.size } }.toLong()
+        // Require tracks to have accumulated at least 8 points before processing
+        val validTracks = tracks.filter { synchronized(it) { it.points.size >= 8 } }
+        val stepDelta = validTracks.sumOf { synchronized(it) { it.points.size } }.toLong()
         cumulativeStepCount += stepDelta
 
-        if (msdResult.msdPoints.size >= 2 && msdResult.D > 0.0) {
-            val instantaneousD = msdResult.D
-            if (runningEmaD <= 0.0) {
-                runningEmaD = instantaneousD
-            } else {
-                // Heavy Exponential Moving Average filter (α = 0.05) for rock-solid temperature stability
+        if (validTracks.size >= 3) {
+            val msdResult = calculateMSD(validTracks, maxLagFrames = 10, bulkDriftPxPerSec = bulkDriftPxPerSec)
+            if (msdResult.msdPoints.size >= 3 && msdResult.D in 0.01..5.0) {
+                val instantaneousD = msdResult.D
+                // Heavy Exponential Moving Average filter (α = 0.05) for rock-solid startup stability
                 runningEmaD = runningEmaD * 0.95 + instantaneousD * 0.05
             }
-        }
-
-        if (runningEmaD <= 0.0) {
-            return CumulativePhysicsResult(0.0, 20.0, cumulativeStepCount, 100.0)
         }
 
         val D_converged = runningEmaD
@@ -133,7 +130,7 @@ class PhysicsEngine {
 
         for (track in tracks) {
             val pts = synchronized(track) { ArrayList(track.points) }
-            if (pts.size < 6) continue
+            if (pts.size < 8) continue
 
             val maxLag = Math.min(8, pts.size / 2)
             val lagSums = DoubleArray(maxLag + 1)
