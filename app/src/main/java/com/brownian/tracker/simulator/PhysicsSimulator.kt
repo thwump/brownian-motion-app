@@ -129,27 +129,26 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
     fun renderToBitmap(bitmap: Bitmap) {
         val canvas = Canvas(bitmap)
 
-        // Clean dark slate background for high-contrast visibility
+        // Bright background for perfect high-contrast detector match (detector.invert = true)
         val bgPaint = Paint().apply {
-            color = Color.parseColor("#0f172a")
+            color = Color.parseColor("#f8fafc")
             style = Paint.Style.FILL
         }
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
 
         val haloPaint = Paint().apply {
-            color = Color.argb(120, 56, 189, 248)
+            color = Color.argb(180, 255, 255, 255)
             style = Paint.Style.FILL
             isAntiAlias = true
         }
 
         val corePaint = Paint().apply {
-            color = Color.parseColor("#f8fafc")
+            color = Color.parseColor("#020617")
             style = Paint.Style.FILL
             isAntiAlias = true
         }
 
         val trailPaint = Paint().apply {
-            color = Color.argb(180, 0, 242, 254)
             style = Paint.Style.STROKE
             strokeWidth = 3.5f
             isAntiAlias = true
@@ -160,7 +159,7 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
             val py = p.y.toFloat()
             val rPx = Math.max(8.0f, (p.radiusMicrons / scaleMicronsPerPixel).toFloat())
 
-            // Render glowing thermal motion trajectory tail directly in simulator
+            // Render glowing motion trajectory tail directly in simulator
             val head = p.trailHead
             for (k in 1 until 30) {
                 val idx1 = (head - k + 30) % 30
@@ -170,10 +169,10 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
                 canvas.drawLine(p.trailX[idx1], p.trailY[idx1], p.trailX[idx2], p.trailY[idx2], trailPaint)
             }
 
-            // Outer glowing diffraction halo
-            canvas.drawCircle(px, py, rPx * 1.5f, haloPaint)
+            // Outer diffraction halo
+            canvas.drawCircle(px, py, rPx * 1.4f, haloPaint)
 
-            // Bright crisp particle core
+            // Crisp dark particle core matching detector.invert = true
             canvas.drawCircle(px, py, rPx, corePaint)
         }
     }
