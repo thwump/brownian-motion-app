@@ -5,8 +5,8 @@ import com.brownian.tracker.physics.BOLTZMANN_REF
 import kotlin.math.*
 
 data class SimulatedParticle(
-    var x: Float,
-    var y: Float,
+    var x: Double,
+    var y: Double,
     val radiusMicrons: Double
 )
 
@@ -16,7 +16,7 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
     var tempCelsius: Double = 20.0
     var driftMicronsPerSec: Double = 0.5
     var numParticles: Int = 40
-    // HD 1280x720 scale for 6mm x 3.375mm optical FOV: 6000 μm / 1280 px = 4.6875 μm/px
+    // Physical scale for 6mm x 3.375mm optical FOV (6000 μm / 1280 px = 4.6875 μm/px)
     var scaleMicronsPerPixel: Float = 4.6875f
     var isPolydisperse: Boolean = true
 
@@ -41,13 +41,13 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
             val u1 = Math.max(1e-6, random.nextDouble())
             val u2 = Math.max(1e-6, random.nextDouble())
             val z = sqrt(-2.0 * ln(u1)) * cos(2.0 * PI * u2)
-            // Fat globules: 0.5 μm to 5.0 μm
-            rMicrons = Math.max(0.5, Math.min(5.0, exp(ln(1.5) + 0.5 * z)))
+            // Fat globules: 0.5 μm to 4.5 μm
+            rMicrons = Math.max(0.5, Math.min(4.5, exp(ln(1.5) + 0.5 * z)))
         }
 
         return SimulatedParticle(
-            x = (random.nextFloat() * (width - 60) + 30),
-            y = (random.nextFloat() * (height - 60) + 30),
+            x = (random.nextDouble() * (width - 60) + 30.0),
+            y = (random.nextDouble() * (height - 60) + 30.0),
             radiusMicrons = rMicrons
         )
     }
@@ -57,8 +57,8 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
         val eta_pascal_sec = viscosityMpaSec * 1e-3
 
         val driftPxPerSec = driftMicronsPerSec / scaleMicronsPerPixel
-        val driftDx = (driftPxPerSec * 0.7071 * dtSeconds).toFloat()
-        val driftDy = (driftPxPerSec * 0.7071 * dtSeconds).toFloat()
+        val driftDx = driftPxPerSec * 0.7071 * dtSeconds
+        val driftDy = driftPxPerSec * 0.7071 * dtSeconds
 
         for (i in particles.indices) {
             val p = particles[i]
@@ -66,18 +66,20 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
             val D_m2_s = (BOLTZMANN_REF * T_kelvin) / (6.0 * PI * eta_pascal_sec * radius_meters)
             val D_microns_sq_s = D_m2_s * 1e12
             val D_px_sq_s = D_microns_sq_s / (scaleMicronsPerPixel * scaleMicronsPerPixel)
-            val sigma = sqrt(2.0 * D_px_sq_s * dtSeconds).toFloat()
+            
+            // Sub-pixel thermal step size σ_px (e.g. ~0.025 px per frame at 60 FPS)
+            val sigma = sqrt(2.0 * D_px_sq_s * dtSeconds)
 
             val u1 = Math.max(1e-6, random.nextDouble())
             val u2 = Math.max(1e-6, random.nextDouble())
-            val z0 = (sqrt(-2.0 * ln(u1)) * cos(2.0 * PI * u2)).toFloat()
-            val z1 = (sqrt(-2.0 * ln(u1)) * sin(2.0 * PI * u2)).toFloat()
+            val z0 = sqrt(-2.0 * ln(u1)) * cos(2.0 * PI * u2)
+            val z1 = sqrt(-2.0 * ln(u1)) * sin(2.0 * PI * u2)
 
             p.x += driftDx + sigma * z0
             p.y += driftDy + sigma * z1
 
             // Respawns new particle when leaving viewport
-            if (p.x < 10f || p.x > width - 10f || p.y < 10f || p.y > height - 10f) {
+            if (p.x < 10.0 || p.x > width - 10.0 || p.y < 10.0 || p.y > height - 10.0) {
                 particles[i] = createRandomParticle()
             }
         }
@@ -86,7 +88,7 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
     fun renderToBitmap(bitmap: Bitmap) {
         val canvas = Canvas(bitmap)
 
-        // Bright white-slate background
+        // Bright background
         val bgPaint = Paint().apply {
             color = Color.parseColor("#f1f5f9")
             style = Paint.Style.FILL
@@ -106,13 +108,15 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
         }
 
         for (p in particles) {
-            val rPx = Math.max(5.0f, (p.radiusMicrons / scaleMicronsPerPixel).toFloat() * 6.0f)
+            val rPx = Math.max(6.0f, (p.radiusMicrons / scaleMicronsPerPixel).toFloat() * 8.0f)
+            val px = p.x.toFloat()
+            val py = p.y.toFloat()
 
             // Outer diffraction halo
-            canvas.drawCircle(p.x, p.y, rPx * 1.5f, haloPaint)
+            canvas.drawCircle(px, py, rPx * 1.5f, haloPaint)
 
             // Crisp dark particle core
-            canvas.drawCircle(p.x, p.y, rPx, corePaint)
+            canvas.drawCircle(px, py, rPx, corePaint)
         }
     }
 }

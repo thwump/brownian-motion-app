@@ -31,10 +31,10 @@ class ParticleTracker {
     private val activeTracks = mutableListOf<ParticleTrack>()
     private val completedTracks = mutableListOf<ParticleTrack>()
     
-    var maxDistancePx: Float = 40f
-    var maxUnseenFrames: Int = 5
-    var maxTrackPoints: Int = 150 // Extended visual tail length
-    var maxCompletedTracks: Int = 20
+    var maxDistancePx: Float = 60f
+    var maxUnseenFrames: Int = 10
+    var maxTrackPoints: Int = 150 // Extended visual trajectory tail length
+    var maxCompletedTracks: Int = 30
     var enableDriftCorrection: Boolean = true
 
     var bulkDriftVector: Vector2D = Vector2D(0f, 0f)
@@ -47,7 +47,7 @@ class ParticleTracker {
         var driftSumY = 0f
         var driftCount = 0
 
-        // Greedy Nearest Neighbor Matching
+        // Sub-pixel Nearest Neighbor Matching
         for (i in activeTracks.indices) {
             val track = activeTracks[i]
             val lastPt = synchronized(track) { track.points.lastOrNull() } ?: continue
@@ -105,14 +105,14 @@ class ParticleTracker {
             }
         }
 
-        // Prune old inactive tracks (Keep completed tracks on screen longer)
+        // Prune old inactive tracks
         val iterator = activeTracks.iterator()
         while (iterator.hasNext()) {
             val track = iterator.next()
             val lastPt = synchronized(track) { track.points.lastOrNull() }
-            if (lastPt != null && (nowSec - lastPt.t) > 1.2) { // 1.2s timeout before pruning
+            if (lastPt != null && (nowSec - lastPt.t) > 1.5) {
                 val pSize = synchronized(track) { track.points.size }
-                if (pSize >= 10) {
+                if (pSize >= 5) {
                     completedTracks.add(track)
                     if (completedTracks.size > maxCompletedTracks) {
                         completedTracks.removeAt(0)
