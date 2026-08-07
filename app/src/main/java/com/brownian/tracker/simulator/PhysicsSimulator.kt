@@ -15,8 +15,9 @@ class PhysicsSimulator(var width: Int = 640, var height: Int = 480) {
     var viscosityMpaSec: Double = 1.0
     var tempCelsius: Double = 20.0
     var driftMicronsPerSec: Double = 0.5
-    var numParticles: Int = 30
-    var scaleMicronsPerPixel: Float = 0.1f
+    var numParticles: Int = 40
+    // Field of view: ~6mm x 4mm across 640x480 pixels => ~9.375 μm/px scale
+    var scaleMicronsPerPixel: Float = 9.375f
     var isPolydisperse: Boolean = true
 
     val particles = mutableListOf<SimulatedParticle>()
@@ -40,13 +41,13 @@ class PhysicsSimulator(var width: Int = 640, var height: Int = 480) {
             val u1 = Math.max(1e-6, random.nextDouble())
             val u2 = Math.max(1e-6, random.nextDouble())
             val z = sqrt(-2.0 * ln(u1)) * cos(2.0 * PI * u2)
-            // Log-normal distribution centered around 1.2 μm (Harmonic mean radius a_eff = 0.7704 μm)
-            rMicrons = Math.max(0.3, Math.min(4.5, exp(ln(1.2) + 0.55 * z)))
+            // Fat globules: 0.5 μm to 5.0 μm
+            rMicrons = Math.max(0.5, Math.min(5.0, exp(ln(1.5) + 0.5 * z)))
         }
 
         return SimulatedParticle(
-            x = (random.nextFloat() * (width - 80) + 40),
-            y = (random.nextFloat() * (height - 80) + 40),
+            x = (random.nextFloat() * (width - 40) + 20),
+            y = (random.nextFloat() * (height - 40) + 20),
             radiusMicrons = rMicrons
         )
     }
@@ -76,7 +77,7 @@ class PhysicsSimulator(var width: Int = 640, var height: Int = 480) {
             p.y += driftDy + sigma * z1
 
             // Respawns new particle when leaving viewport (eliminates boundary teleports)
-            if (p.x < 10f || p.x > width - 10f || p.y < 10f || p.y > height - 10f) {
+            if (p.x < 5f || p.x > width - 5f || p.y < 5f || p.y > height - 5f) {
                 particles[i] = createRandomParticle()
             }
         }
@@ -85,18 +86,15 @@ class PhysicsSimulator(var width: Int = 640, var height: Int = 480) {
     fun renderToBitmap(bitmap: Bitmap) {
         val canvas = Canvas(bitmap)
 
-        // Radial illuminated background
+        // Light background
         val bgPaint = Paint().apply {
-            shader = RadialGradient(
-                width / 2f, height / 2f, Math.max(width, height) / 1.1f,
-                Color.parseColor("#f8fafc"), Color.parseColor("#cbd5e1"),
-                Shader.TileMode.CLAMP
-            )
+            color = Color.parseColor("#e2e8f0")
+            style = Paint.Style.FILL
         }
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
 
         val haloPaint = Paint().apply {
-            color = Color.argb(215, 255, 255, 255)
+            color = Color.argb(180, 255, 255, 255)
             style = Paint.Style.FILL
             isAntiAlias = true
         }
@@ -106,19 +104,17 @@ class PhysicsSimulator(var width: Int = 640, var height: Int = 480) {
             isAntiAlias = true
         }
 
+        // Diffraction-limited point spread function (PSF) rendering for 4mm x 6mm FOV
         for (p in particles) {
-            val rPx = Math.max(4f, (p.radiusMicrons / scaleMicronsPerPixel).toFloat())
+            // Optical diffraction Airy disk radius (1.5 to 3.5 pixels)
+            val diffractionRadiusPx = Math.max(2.0f, (p.radiusMicrons / 0.8f).toFloat())
 
             // Diffraction halo ring
-            canvas.drawCircle(p.x, p.y, rPx * 1.35f, haloPaint)
+            canvas.drawCircle(p.x, p.y, diffractionRadiusPx * 1.6f, haloPaint)
 
-            // Dark core
-            corePaint.shader = RadialGradient(
-                p.x - rPx * 0.3f, p.y - rPx * 0.3f, rPx * 1.0f,
-                Color.parseColor("#475569"), Color.parseColor("#0f172a"),
-                Shader.TileMode.CLAMP
-            )
-            canvas.drawCircle(p.x, p.y, rPx, corePaint)
+            // Dark core spot
+            corePaint.color = Color.parseColor("#0f172a")
+            canvas.drawCircle(p.x, p.y, diffractionRadiusPx, corePaint)
         }
     }
 }

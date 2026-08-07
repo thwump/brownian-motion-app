@@ -46,7 +46,8 @@ data class PolydisperseSizingResult(
 )
 
 class PhysicsEngine {
-    var scaleMicronsPerPixel: Float = 0.1f // μm/px
+    // Default scale matching 4mm x 6mm FOV across 640x480 resolution (6000 μm / 640 px = 9.375 μm/px)
+    var scaleMicronsPerPixel: Float = 9.375f
     var frameRate: Int = 60
 
     @Volatile
@@ -73,7 +74,8 @@ class PhysicsEngine {
         dtSeconds: Double
     ) {
         val pureDist = hypot(pureDxMicrons, pureDyMicrons)
-        if (pureDist in 0.0001..3.0 && dtSeconds in 0.005..0.1) {
+        // Scaled physical step threshold for 4x6mm optical field of view
+        if (pureDist in 0.001..25.0 && dtSeconds in 0.005..0.1) {
             val sqDist = pureDxMicrons * pureDxMicrons + pureDyMicrons * pureDyMicrons
             cumulativeSumSqDisplacement += sqDist
             cumulativeSumTimeSeconds += dtSeconds
@@ -186,7 +188,7 @@ class PhysicsEngine {
                 val pureDy = rawDy - driftDy
                 val pureDist = hypot(pureDx.toDouble(), pureDy.toDouble())
 
-                if (pureDist < 3.0) {
+                if (pureDist < 25.0) {
                     sumSqDist += pureDx * pureDx + pureDy * pureDy
                     totalDt += dt
                     validSteps++
@@ -202,7 +204,7 @@ class PhysicsEngine {
                 val a_i_meters = (BOLTZMANN_REF * T_kelvin) / (6.0 * Math.PI * eta_pascal_sec * D_i_m2_s)
                 val d_i_microns = a_i_meters * 2.0 * 1e6
 
-                if (d_i_microns in 0.05..25.0) {
+                if (d_i_microns in 0.05..50.0) {
                     individualResults.add(ParticleSizeResult(track.id, D_i_microns_sq_s, d_i_microns, pts.size))
                     diameters.add(d_i_microns)
                 }
@@ -222,7 +224,7 @@ class PhysicsEngine {
         val pdi = (stdDev / meanD).pow(2)
 
         val minBin = 0.2
-        val maxBin = Math.max(6.0, Math.min(15.0, Math.ceil(diameters.last())))
+        val maxBin = Math.max(6.0, Math.min(25.0, Math.ceil(diameters.last())))
         val numBins = 15
         val binWidth = (maxBin - minBin) / numBins
         val bins = mutableListOf<String>()
@@ -270,7 +272,7 @@ class PhysicsEngine {
                     val dy = (pts[i + lag].y - pts[i].y) * scaleMicronsPerPixel
                     val dist = hypot(dx.toDouble(), dy.toDouble())
 
-                    if (dist < 3.0 * lag) {
+                    if (dist < 25.0 * lag) {
                         val sqDist = dx * dx + dy * dy
                         lagSums[lag] = lagSums[lag] + sqDist
                         lagCounts[lag] = lagCounts[lag] + 1
