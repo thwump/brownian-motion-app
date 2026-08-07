@@ -33,8 +33,9 @@ class ParticleTracker {
     
     var maxDistancePx: Float = 60f
     var maxUnseenFrames: Int = 10
-    var maxTrackPoints: Int = 150 // Extended visual trajectory tail length
-    var maxCompletedTracks: Int = 30
+    var maxTrackPoints: Int = 150
+    var maxActiveTracks: Int = 60
+    var maxCompletedTracks: Int = 20
     var enableDriftCorrection: Boolean = true
 
     var bulkDriftVector: Vector2D = Vector2D(0f, 0f)
@@ -93,9 +94,9 @@ class ParticleTracker {
             bulkDriftVector = Vector2D(0f, 0f)
         }
 
-        // Initialize new tracks for unassigned detections
+        // Initialize new tracks for unassigned detections up to maxActiveTracks
         for (j in detections.indices) {
-            if (!assignedDetections[j]) {
+            if (!assignedDetections[j] && activeTracks.size < maxActiveTracks) {
                 val det = detections[j]
                 val newTrack = ParticleTrack(id = nextId++)
                 synchronized(newTrack) {
@@ -110,7 +111,7 @@ class ParticleTracker {
         while (iterator.hasNext()) {
             val track = iterator.next()
             val lastPt = synchronized(track) { track.points.lastOrNull() }
-            if (lastPt != null && (nowSec - lastPt.t) > 1.5) {
+            if (lastPt != null && (nowSec - lastPt.t) > 1.2) {
                 val pSize = synchronized(track) { track.points.size }
                 if (pSize >= 5) {
                     completedTracks.add(track)

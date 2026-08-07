@@ -15,6 +15,9 @@ class ParticleDetector {
     var minParticleRadius: Int = 3
     var maxParticleRadius: Int = 50
     var invert: Boolean = true
+    
+    // Safety cap to prevent ANR / memory freeze when high contrast detects thousands of spots
+    var maxDetectedParticlesCap: Int = 80
 
     fun detectParticles(
         yBuffer: ByteBuffer,
@@ -28,7 +31,6 @@ class ParticleDetector {
         val yData = ByteArray(yBuffer.remaining())
         yBuffer.get(yData)
 
-        // Strided step dynamically tuned to image width (e.g. step = 4 for 12.5 MP 4080x3072)
         val step = if (width > 2000) 4 else 2
         val labels = IntArray(width * height)
         var currentLabel = 1
@@ -36,13 +38,17 @@ class ParticleDetector {
         for (y in step until height - step step step) {
             val rowOffset = y * rowStride
             for (x in step until width - step step step) {
+                // Safety exit if particle count hits maximum safety cap
+                if (particles.size >= maxDetectedParticlesCap) {
+                    return particles
+                }
+
                 val pixelVal = yData[rowOffset + x].toInt() and 0xFF
                 val targetVal = if (invert) (255 - pixelVal) else pixelVal
 
                 if (targetVal > minThreshold) {
                     val idx = y * width + x
                     if (labels[idx] == 0) {
-                        // High-speed sub-pixel centroid flood fill
                         var sumX = 0.0
                         var sumY = 0.0
                         var totalIntensity = 0.0
@@ -52,8 +58,8 @@ class ParticleDetector {
                         var minY = y
                         var maxY = y
 
-                        val queueX = IntArray(512)
-                        val queueY = IntArray(512)
+                        val queueX = IntArray(256)
+                        val queueY = IntArray(256)
                         var head = 0
                         var tail = 0
 
@@ -62,7 +68,7 @@ class ParticleDetector {
                         tail++
                         labels[idx] = currentLabel
 
-                        while (head < tail && pixelCount < 1000) {
+                        while (head < tail && pixelCount < 300) {
                             val qx = queueX[head]
                             val qy = queueY[head]
                             head++
