@@ -60,6 +60,13 @@ class MainActivity : AppCompatActivity() {
         videoLoader = VideoFileLoader(this)
         simBitmap = Bitmap.createBitmap(1280, 720, Bitmap.Config.ARGB_8888)
 
+        // Explicitly set Fluid Drift = 0.0 and Drift Correction OFF by default
+        simulator.driftMicronsPerSec = 0.0
+        tracker.enableDriftCorrection = false
+        binding.switchDriftFix.isChecked = false
+        binding.seekBarDrift.progress = 0
+        binding.tvDriftSliderLabel.text = "Fluid Drift: 0.00 μm/s"
+
         // Synchronize initial physics engine scale to simulator scale (0.3125 μm/px)
         physics.scaleMicronsPerPixel = simulator.scaleMicronsPerPixel
         binding.switchMilkMode.isChecked = false
@@ -218,7 +225,7 @@ class MainActivity : AppCompatActivity() {
         binding.overlayView.onCalibrationComplete = { distPx ->
             val builder = AlertDialog.Builder(this)
             builder.setTitle("Enter Calibration Distance")
-            builder.setMessage(String.format("Measured line: %.1f pixels at 1.0x zoom.\nEnter physical distance in micrometers (e.g. 1000 μm for 1mm ruler):", distPx))
+            builder.setMessage(String.format("Measured line: %.1f pixels at 1.0x zoom.\nEnter physical distance in micrometers (e.g. 1000 μm for 1mm ruler mark):", distPx))
 
             val input = android.widget.EditText(this)
             input.setText("1000.0") // Default to 1mm (1000 μm) ruler mark
@@ -354,10 +361,14 @@ class MainActivity : AppCompatActivity() {
         // Synchronize scaleMicronsPerPixel between simulator and physics engine
         physics.scaleMicronsPerPixel = simulator.scaleMicronsPerPixel
 
-        val driftPxPerSec = Vector2D(
-            tracker.bulkDriftVector.vx * 60f,
-            tracker.bulkDriftVector.vy * 60f
-        )
+        val driftPxPerSec = if (tracker.enableDriftCorrection) {
+            Vector2D(
+                tracker.bulkDriftVector.vx * 60f,
+                tracker.bulkDriftVector.vy * 60f
+            )
+        } else {
+            Vector2D(0f, 0f)
+        }
 
         val cumul = physics.accumulateSteps(tracks, driftPxPerSec, refRadius)
 
