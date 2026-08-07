@@ -35,10 +35,10 @@ class OverlayView @JvmOverloads constructor(
     var isCalibrationMode: Boolean = false
     var onCalibrationComplete: ((distPx: Float) -> Unit)? = null
 
-    // Base calibration scale at 1.0x uncropped zoom (μm / px)
-    var baseScaleMicronsPerPixel: Float = 4.6875f
+    // Base calibration scale at 1.0x uncropped zoom (4.0mm FOV = 3.125 μm / px)
+    var baseScaleMicronsPerPixel: Float = 3.125f
     // Current digital zoom ratio (1.0x to 10.0x)
-    var currentZoomRatio: Float = 1.0f
+    var currentZoomRatio: Float = 10.0f
 
     private var calibStartPoint: PointF? = null
     private var calibEndPoint: PointF? = null
@@ -205,8 +205,8 @@ class OverlayView @JvmOverloads constructor(
         val effectiveScaleMicronsPerPx = (baseScaleMicronsPerPixel / Math.max(1.0f, currentZoomRatio)) * scaleX
         if (effectiveScaleMicronsPerPx <= 0) return
 
-        // Target scale bar width on screen ~ 120 pixels
-        val targetMicrons = 120.0 * effectiveScaleMicronsPerPx
+        // Target scale bar width on screen ~ 140 pixels
+        val targetMicrons = 140.0 * effectiveScaleMicronsPerPx
 
         // Pick round physical length (1mm, 500μm, 100μm, 50μm, 10μm, 1μm)
         val (barMicrons, labelStr) = when {

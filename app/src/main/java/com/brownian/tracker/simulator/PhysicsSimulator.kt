@@ -17,8 +17,9 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
     var driftMicronsPerSec: Double = 0.5
     var numParticles: Int = 30
     
-    // Scale controls visual optical magnification (0.1 μm/px = High-Mag Microscope mode)
-    var scaleMicronsPerPixel: Float = 0.1f
+    // Pixel 9 + 200x Lens + 10x Digital Zoom scale:
+    // 400 μm FOV across 1280 px canvas => 0.3125 μm/px scale!
+    var scaleMicronsPerPixel: Float = 0.3125f
     var isPolydisperse: Boolean = true
 
     val particles = mutableListOf<SimulatedParticle>()
@@ -90,14 +91,13 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
                 val dy = p2.y - p1.y
                 val dist = hypot(dx, dy)
 
-                val minDistPx = Math.max(16.0, ((p1.radiusMicrons + p2.radiusMicrons) / scaleMicronsPerPixel))
+                val minDistPx = Math.max(12.0, ((p1.radiusMicrons + p2.radiusMicrons) / scaleMicronsPerPixel))
 
                 if (dist < minDistPx && dist > 0.001) {
                     val overlap = minDistPx - dist
                     val nx = dx / dist
                     val ny = dy / dist
 
-                    // Softly push particles apart to prevent clumping
                     p1.x -= nx * overlap * 0.5
                     p1.y -= ny * overlap * 0.5
                     p2.x += nx * overlap * 0.5
@@ -138,7 +138,8 @@ class PhysicsSimulator(var width: Int = 1280, var height: Int = 720) {
         }
 
         for (p in particles) {
-            val rPx = Math.max(6.0f, (p.radiusMicrons / scaleMicronsPerPixel).toFloat())
+            // Realistic optical PSF diffraction Airy spot size
+            val rPx = Math.max(5.0f, (p.radiusMicrons / scaleMicronsPerPixel).toFloat() * 1.5f)
             val px = p.x.toFloat()
             val py = p.y.toFloat()
 

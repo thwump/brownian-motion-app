@@ -46,8 +46,8 @@ data class PolydisperseSizingResult(
 )
 
 class PhysicsEngine {
-    // High-magnification microscope mode (0.1 μm/px scale -> 50μm FOV across viewport)
-    var scaleMicronsPerPixel: Float = 0.1f
+    // Pixel 9 + 200x Lens + 10x Digital Zoom scale: 0.3125 μm/px (400 μm FOV across 1280 px canvas)
+    var scaleMicronsPerPixel: Float = 0.3125f
     var frameRate: Int = 60
 
     @Volatile
@@ -75,7 +75,6 @@ class PhysicsEngine {
     ) {
         val pureDist = hypot(pureDxMicrons, pureDyMicrons)
         // Strict single-step cutoff: max physical Brownian displacement in 16.6ms is < 2.5 μm
-        // Any step > 2.5 μm is a particle respawn jump or tracking swap and MUST be discarded!
         if (pureDist in 0.001..2.5 && dtSeconds in 0.005..0.1) {
             val sqDist = pureDxMicrons * pureDxMicrons + pureDyMicrons * pureDyMicrons
             cumulativeSumSqDisplacement += sqDist
