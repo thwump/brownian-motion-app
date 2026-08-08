@@ -169,6 +169,105 @@ class MainActivity : AppCompatActivity() {
         }
 
         // -------------------------------------------------------------
+        // PARTICLE DETECTION TUNING CONTROLS
+        // -------------------------------------------------------------
+        binding.switchInvertPolarity.setOnCheckedChangeListener { _, isChecked ->
+            detector.invert = isChecked
+        }
+
+        // 1. Detection Contrast Sensitivity Threshold (0 to 200)
+        binding.seekBarDetectThreshold.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser && !isUpdatingFromCode) {
+                    detector.minThreshold = progress
+                    isUpdatingFromCode = true
+                    binding.etDetectThresholdInput.setText(progress.toString())
+                    isUpdatingFromCode = false
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        binding.etDetectThresholdInput.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                if (!isUpdatingFromCode) {
+                    val thresh = s.toString().toIntOrNull()
+                    if (thresh != null && thresh in 0..255) {
+                        detector.minThreshold = thresh
+                        isUpdatingFromCode = true
+                        binding.seekBarDetectThreshold.progress = thresh.coerceIn(0, 200)
+                        isUpdatingFromCode = false
+                    }
+                }
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+
+        // 2. Min Particle Radius (1 to 20 px)
+        binding.seekBarMinRadius.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser && !isUpdatingFromCode) {
+                    val r = Math.max(1, progress)
+                    detector.minParticleRadius = r
+                    isUpdatingFromCode = true
+                    binding.etMinRadiusInput.setText(r.toString())
+                    isUpdatingFromCode = false
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        binding.etMinRadiusInput.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                if (!isUpdatingFromCode) {
+                    val r = s.toString().toIntOrNull()
+                    if (r != null && r in 1..50) {
+                        detector.minParticleRadius = r
+                        isUpdatingFromCode = true
+                        binding.seekBarMinRadius.progress = r.coerceIn(1, 20)
+                        isUpdatingFromCode = false
+                    }
+                }
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+
+        // 3. Max Particle Radius (5 to 100 px)
+        binding.seekBarMaxRadius.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser && !isUpdatingFromCode) {
+                    val r = Math.max(5, progress)
+                    detector.maxParticleRadius = r
+                    isUpdatingFromCode = true
+                    binding.etMaxRadiusInput.setText(r.toString())
+                    isUpdatingFromCode = false
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        binding.etMaxRadiusInput.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                if (!isUpdatingFromCode) {
+                    val r = s.toString().toIntOrNull()
+                    if (r != null && r in 5..200) {
+                        detector.maxParticleRadius = r
+                        isUpdatingFromCode = true
+                        binding.seekBarMaxRadius.progress = r.coerceIn(5, 100)
+                        isUpdatingFromCode = false
+                    }
+                }
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+
+        // -------------------------------------------------------------
         // BI-DIRECTIONAL SYNCHRONIZED CONTROLS: TEXT BOX + SEEKBAR
         // -------------------------------------------------------------
 
@@ -269,7 +368,7 @@ class MainActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         })
 
-        // 4. MEAN PARTICLE SIZE / DIAMETER (0.2 μm to 10.0 μm)
+        // 4. MEAN PARTICLE SIZE CONTROL (Text + Slider)
         binding.seekBarSize.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser && !isUpdatingFromCode) {
