@@ -56,6 +56,8 @@ class Camera2Manager(
     private var activeCharacteristics: CameraCharacteristics? = null
     private var previewSurface: Surface? = null
     
+    private var isShuttingDown = false
+    
     var torchActive: Boolean = false
         private set
     
@@ -126,6 +128,7 @@ class Camera2Manager(
     
     @RequiresPermission(Manifest.permission.CAMERA)
     fun startCamera() {
+        isShuttingDown = false
         startBackgroundThread()
         
         // Wait for surface to be ready
@@ -153,6 +156,11 @@ class Camera2Manager(
     
     @RequiresPermission(Manifest.permission.CAMERA)
     private fun initializeCamera() {
+        if (isShuttingDown) {
+            Log.d(TAG, "Shutdown in progress, skipping camera initialization")
+            return
+        }
+        
         val capabilities = findBestCamera()
         if (capabilities == null) {
             Log.e(TAG, "No suitable camera found")
@@ -212,10 +220,22 @@ class Camera2Manager(
     }
     
     private fun createCaptureSession() {
+        if (isShuttingDown) {
+            Log.d(TAG, "Shutdown in progress, skipping capture session creation")
+            return
+        }
+        
         val device = cameraDevice ?: return
         val reader = imageReader ?: return
         
-        previewSurface = surfaceView.holder.surface
+        // Get surface from SurfaceView and validate it
+        val surface = surfaceView.holder.surface
+        if (!surface.isValid) {
+            Log.w(TAG, "Surface is not valid, cannot create capture session")
+            return
+        }
+        
+        previewSurface = surface
         val previewSurf = previewSurface ?: return
         
         val outputs = listOf(
@@ -371,6 +391,8 @@ class Camera2Manager(
     }
     
     fun shutdown() {
+        isShuttingDown = true
+        
         try {
             captureSession?.close()
             captureSession = null
