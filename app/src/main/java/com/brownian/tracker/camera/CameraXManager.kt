@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalCamera2Interop::class)
 class CameraXManager(
@@ -163,14 +164,31 @@ class CameraXManager(
     }
 
     /**
-     * Manual Focus Control (0.0 = infinity, 1.0 = minimum focus distance)
-     * Critical for microscopy to maintain fixed focal plane!
-     * Returns true if focus was successfully set
+     * Manual Focus Control using center-point focus metering
+     * CameraX doesn't support direct focus distance control, so we use
+     * a FocusMeteringAction at center of frame with AF_MODE_AUTO locked
+     * 
+     * Note: True manual focus (setting focus distance directly) requires Camera2 API
+     * This is a workaround that locks focus at a specific point
      */
-    fun setManualFocus(focusDistance: Float): Boolean {
+    fun setManualFocus(focusValue: Float): Boolean {
         return try {
-            cameraControl?.setLinearZoom(focusDistance)?.get()
-            true
+            // CameraX limitation: Cannot set focus distance directly
+            // Instead, we trigger AF at center point and lock it
+            // focusValue parameter is currently unused due to API limitations
+            
+            val factory = cameraInfo?.let { SurfaceOrientedMeteringPointFactory(1.0f, 1.0f) }
+            factory?.let {
+                // Focus at center of frame (0.5, 0.5)
+                val point = it.createPoint(0.5f, 0.5f)
+                val action = FocusMeteringAction.Builder(point)
+                    .setAutoCancelDuration(Long.MAX_VALUE, TimeUnit.SECONDS) // Don't auto-cancel
+                    .build()
+                    
+                cameraControl?.startFocusAndMetering(action)
+                Log.d("CameraXManager", "Focus locked at center point")
+                true
+            } ?: false
         } catch (e: Exception) {
             Log.w("CameraXManager", "Manual focus failed: ${e.message}")
             false
@@ -178,29 +196,16 @@ class CameraXManager(
     }
 
     /**
-     * Lock Autofocus at current position
-     * Prevents focus hunting during Brownian motion tracking
+     * Cancel autofocus lock - returns to continuous AF
      */
-    fun lockAutoFocus(): Boolean {
+    fun unlockAutoFocus(): Boolean {
         return try {
             cameraControl?.cancelFocusAndMetering()
+            Log.d("CameraXManager", "Autofocus unlocked")
             true
         } catch (e: Exception) {
-            Log.w("CameraXManager", "AF lock failed: ${e.message}")
+            Log.w("CameraXManager", "AF unlock failed: ${e.message}")
             false
-        }
-    }
-
-    /**
-     * Get min/max focus distance range in diopters
-     */
-    fun getFocusDistanceRange(): Pair<Float, Float>? {
-        return try {
-            val minFocusDistance = cameraInfo?.cameraState?.value?.toString() ?: "unknown"
-            // CameraX doesn't expose this directly, return approximate range
-            Pair(0.0f, 1.0f) // 0=far, 1=close
-        } catch (e: Exception) {
-            null
         }
     }
 

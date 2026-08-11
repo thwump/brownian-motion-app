@@ -173,32 +173,42 @@ class MainActivity : AppCompatActivity() {
 
         // -------------------------------------------------------------
         // MANUAL FOCUS CONTROLS FOR MICROSCOPY
+        // Note: CameraX doesn't support direct focus distance control
+        // The slider triggers autofocus at center point - not true manual focus
         // -------------------------------------------------------------
         binding.seekBarFocus.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser && ::cameraManager.isInitialized) {
                     val focusValue = progress / 100.0f
+                    // Trigger focus at center point (workaround for CameraX limitation)
                     cameraManager.setManualFocus(focusValue)
-                    binding.tvFocusLabel.text = String.format("Focus: %.2f (0=far, 1=close)", focusValue)
+                    binding.tvFocusLabel.text = String.format("Focus: %.2f (tap Lock to hold)", focusValue)
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                // When user releases slider, trigger AF lock at center
+                if (::cameraManager.isInitialized) {
+                    cameraManager.setManualFocus(0.5f)
+                }
+            }
         })
 
         binding.btnLockFocus.setOnClickListener {
             if (::cameraManager.isInitialized) {
-                val success = cameraManager.lockAutoFocus()
-                Toast.makeText(this, if (success) "Focus locked at current position" else "Focus lock failed", Toast.LENGTH_SHORT).show()
+                // Lock focus at center point
+                val success = cameraManager.setManualFocus(0.5f)
+                Toast.makeText(this, if (success) "Focus locked at center - prevents hunting!" else "Focus lock failed", Toast.LENGTH_SHORT).show()
             }
         }
 
         binding.btnAutoFocus.setOnClickListener {
             if (::cameraManager.isInitialized) {
-                // Reset seek bar to middle and re-enable AF
+                // Cancel focus lock and return to continuous AF
+                val success = cameraManager.unlockAutoFocus()
                 binding.seekBarFocus.progress = 50
-                binding.tvFocusLabel.text = "Focus: 0.5 (Auto)"
-                Toast.makeText(this, "Autofocus re-enabled", Toast.LENGTH_SHORT).show()
+                binding.tvFocusLabel.text = "Focus: Auto (continuous)"
+                Toast.makeText(this, if (success) "Autofocus re-enabled" else "AF unlock failed", Toast.LENGTH_SHORT).show()
             }
         }
 
