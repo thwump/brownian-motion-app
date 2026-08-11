@@ -160,6 +160,11 @@ class MainActivity : AppCompatActivity() {
             simulator.initParticles()
             physics.resetAccumulators()
             tracker.reset()
+            
+            // Disable particle size controls when polydisperse mode is active
+            // (uses fixed milk fat globule distribution: 0.8-3.5 μm, median 1.5 μm)
+            binding.seekBarSize.isEnabled = !isChecked
+            binding.etSizeInput.isEnabled = !isChecked
         }
 
         binding.switchDriftFix.setOnCheckedChangeListener { _, isChecked ->
