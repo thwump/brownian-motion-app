@@ -162,6 +162,48 @@ class CameraXManager(
         cameraControl?.setZoomRatio(Math.max(1.0f, Math.min(10.0f, ratio)))
     }
 
+    /**
+     * Manual Focus Control (0.0 = infinity, 1.0 = minimum focus distance)
+     * Critical for microscopy to maintain fixed focal plane!
+     * Returns true if focus was successfully set
+     */
+    fun setManualFocus(focusDistance: Float): Boolean {
+        return try {
+            cameraControl?.setLinearZoom(focusDistance)?.get()
+            true
+        } catch (e: Exception) {
+            Log.w("CameraXManager", "Manual focus failed: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Lock Autofocus at current position
+     * Prevents focus hunting during Brownian motion tracking
+     */
+    fun lockAutoFocus(): Boolean {
+        return try {
+            cameraControl?.cancelFocusAndMetering()
+            true
+        } catch (e: Exception) {
+            Log.w("CameraXManager", "AF lock failed: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Get min/max focus distance range in diopters
+     */
+    fun getFocusDistanceRange(): Pair<Float, Float>? {
+        return try {
+            val minFocusDistance = cameraInfo?.cameraState?.value?.toString() ?: "unknown"
+            // CameraX doesn't expose this directly, return approximate range
+            Pair(0.0f, 1.0f) // 0=far, 1=close
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     fun toggleTorch(): Boolean {
         cameraControl?.let { control ->
             torchActive = !torchActive

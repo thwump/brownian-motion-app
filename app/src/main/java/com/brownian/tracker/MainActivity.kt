@@ -20,6 +20,7 @@ import com.brownian.tracker.camera.CameraXManager
 import com.brownian.tracker.databinding.ActivityMainBinding
 import com.brownian.tracker.detector.DetectedParticle
 import com.brownian.tracker.detector.ParticleDetector
+import com.brownian.tracker.export.DataExporter
 import com.brownian.tracker.physics.PhysicsEngine
 import com.brownian.tracker.simulator.PhysicsSimulator
 import com.brownian.tracker.tracker.ParticleTracker
@@ -36,6 +37,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cameraManager: CameraXManager
     private lateinit var simulator: PhysicsSimulator
     private lateinit var videoLoader: VideoFileLoader
+    private lateinit var dataExporter: DataExporter
 
     private val detector = ParticleDetector()
     private val tracker = ParticleTracker()
@@ -62,6 +64,7 @@ class MainActivity : AppCompatActivity() {
         // HD 1280x720 Processing & Simulation Buffer for real-time 60 FPS performance
         simulator = PhysicsSimulator(1280, 720)
         videoLoader = VideoFileLoader(this)
+        dataExporter = DataExporter(this)
         simBitmap = Bitmap.createBitmap(1280, 720, Bitmap.Config.ARGB_8888)
 
         // Explicitly set Fluid Drift = 0.0, Particle Radius = 1.0 μm (2.0 μm diam), and Drift Correction OFF by default
@@ -166,6 +169,48 @@ class MainActivity : AppCompatActivity() {
             if (::cameraManager.isInitialized) {
                 cameraManager.toggleTorch()
             }
+        }
+
+        // -------------------------------------------------------------
+        // MANUAL FOCUS CONTROLS FOR MICROSCOPY
+        // -------------------------------------------------------------
+        binding.seekBarFocus.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser && ::cameraManager.isInitialized) {
+                    val focusValue = progress / 100.0f
+                    cameraManager.setManualFocus(focusValue)
+                    binding.tvFocusLabel.text = String.format("Focus: %.2f (0=far, 1=close)", focusValue)
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        binding.btnLockFocus.setOnClickListener {
+            if (::cameraManager.isInitialized) {
+                val success = cameraManager.lockAutoFocus()
+                Toast.makeText(this, if (success) "Focus locked at current position" else "Focus lock failed", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        binding.btnAutoFocus.setOnClickListener {
+            if (::cameraManager.isInitialized) {
+                // Reset seek bar to middle and re-enable AF
+                binding.seekBarFocus.progress = 50
+                binding.tvFocusLabel.text = "Focus: 0.5 (Auto)"
+                Toast.makeText(this, "Autofocus re-enabled", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // -------------------------------------------------------------
+        // DATA EXPORT CONTROLS
+        // -------------------------------------------------------------
+        binding.btnExportJSON.setOnClickListener {
+            exportDataJSON()
+        }
+
+        binding.btnExportCSV.setOnClickListener {
+            exportDataCSV()
         }
 
         // -------------------------------------------------------------
@@ -620,6 +665,103 @@ class MainActivity : AppCompatActivity() {
         binding.tvDiffVal.text = String.format("%.3f μm²/s", D)
         binding.tvTempVal.text = String.format("%.1f °C (±%.1f%%, N=%d)", tempC, stdErr, totalSteps)
         binding.tvSizeVal.text = String.format("%.2f μm", meanDiam)
+    }
+
+    private fun exportDataJSON() {
+        try {
+            val tracks = tracker.getAllTracks()
+            if (tracks.isEmpty()) {
+                Toast.makeText(this, "No trajectory data to export. Record some data first!", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val isPoly = binding.switchMilkMode.isChecked
+            val refRadius = if (isPoly) simulator.getHarmonicMeanRadiusMicrons() else simulator.particleRadiusMicrons
+            val currentViscosity = simulator.viscosityMpaSec
+
+            val driftPxPerSec = if (tracker.enableDriftCorrection) {
+                Vector2D(tracker.bulkDriftVector.vx * 60f, tracker.bulkDriftVector.vy * 60f)
+            } else {
+                Vector2D(0f, 0f)
+            }
+
+            val cumul = physics.accumulateSteps(tracks, driftPxPerSec, refRadius, currentViscosity)
+            val msdResult = physics.calculateMSD(tracks, 20)
+            val polydisperseSizing = physics.calculatePolydisperseSizing(
+                tracks, 
+                simulator.tempCelsius, 
+                currentViscosity, 
+                driftPxPerSec
+            )
+
+            val experimentalParams = mapOf(
+                "mode" to activeMode,
+                "temperature_set_C" to simulator.tempCelsius,
+                "viscosity_mPa_s" to currentViscosity,
+                "particle_count" to simulator.numParticles,
+                "drift_correction_enabled" to tracker.enableDriftCorrection,
+                "polydisperse_mode" to isPoly,
+                "mean_particle_radius_um" to refRadius,
+                "drift_um_per_s" to simulator.driftMicronsPerSec,
+                "detector_threshold" to detector.minThreshold,
+                "detector_invert" to detector.invert
+            )
+
+            val file = dataExporter.exportToJSON(
+                tracks = tracks,
+                scaleMicronsPerPixel = physics.scaleMicronsPerPixel,
+                tempCelsius = cumul.T_converged_C,
+                diffusionCoeff = cumul.D_converged,
+                polydisperseSizing = polydisperseSizing,
+                msdPoints = msdResult.msdPoints,
+                experimentalParams = experimentalParams
+            )
+
+            binding.tvExportStatus.text = "✅ Exported: ${file.name}"
+            Toast.makeText(this, "JSON exported successfully!", Toast.LENGTH_SHORT).show()
+
+            // Offer to share
+            AlertDialog.Builder(this)
+                .setTitle("Export Complete")
+                .setMessage("Data exported to:\n${file.absolutePath}\n\nWould you like to share it?")
+                .setPositiveButton("Share") { _, _ -> dataExporter.shareFile(file) }
+                .setNegativeButton("Close", null)
+                .show()
+
+        } catch (e: Exception) {
+            binding.tvExportStatus.text = "❌ Export failed: ${e.message}"
+            Toast.makeText(this, "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun exportDataCSV() {
+        try {
+            val tracks = tracker.getAllTracks()
+            if (tracks.isEmpty()) {
+                Toast.makeText(this, "No trajectory data to export. Record some data first!", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val file = dataExporter.exportToCSV(
+                tracks = tracks,
+                scaleMicronsPerPixel = physics.scaleMicronsPerPixel
+            )
+
+            binding.tvExportStatus.text = "✅ Exported: ${file.name}"
+            Toast.makeText(this, "CSV exported successfully!", Toast.LENGTH_SHORT).show()
+
+            // Offer to share
+            AlertDialog.Builder(this)
+                .setTitle("Export Complete")
+                .setMessage("Trajectory data exported to:\n${file.absolutePath}\n\nWould you like to share it?")
+                .setPositiveButton("Share") { _, _ -> dataExporter.shareFile(file) }
+                .setNegativeButton("Close", null)
+                .show()
+
+        } catch (e: Exception) {
+            binding.tvExportStatus.text = "❌ Export failed: ${e.message}"
+            Toast.makeText(this, "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {

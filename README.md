@@ -11,7 +11,7 @@ Optimized for **Google Pixel 9** and modern multi-camera Android devices.
 - **Hardware Physical Lens Locking**: Utilizes Android **CameraX** to lock `LENS_FACING_BACK` and optical `zoom = 1.0f`, completely forbidding HAL3 multi-camera auto-switching when attached to clip-on microscope lenses.
 - **Zero-Copy Image Analysis**: Processes YUV420_888 camera buffers directly on background execution threads with zero CPU bitmap copy overhead.
 - **Joint Maximum Likelihood Estimator (MLE)**: Jointly estimates temperature $T$ (°C) and individual particle hydrodynamic diameters $d_i$ from position variances without assuming optical blob sizes.
-- **Polydisperse Milk Mode**: Handles complex fluids with harmonic mean radius weighting ($a_{\text{harmonic}} = 0.77\,\mu\text{m}$).
+- **Polydisperse Milk Mode**: Handles complex fluids with dynamic harmonic mean radius calculation ($a_{\text{harmonic}} = N / \sum(1/a_i)$) for accurate temperature extraction.
 - **Bulk Flow Subtraction**: Real-time convective drift vector calculation and removal.
 - **Hardware Torch Light Control**: Integrated toggle for smartphone LED flash.
 

@@ -5,6 +5,7 @@
     <color name="accent_cyan">#00f2fe</color>
     <color name="accent_magenta">#f72585</color>
     <color name="accent_purple">#9d4edd</color>
+    <color name="accent_green">#00f5d4</color>
     <color name="text_main">#f8fafc</color>
     <color name="text_muted">#94a3b8</color>
 </resources>
