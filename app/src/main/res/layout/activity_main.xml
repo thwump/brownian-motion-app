@@ -73,7 +73,7 @@
     <FrameLayout
         android:id="@+id/viewportContainer"
         android:layout_width="match_parent"
-        android:layout_height="250dp"
+        android:layout_height="500dp"
         android:background="#000000">
 
         <com.brownian.tracker.ui.AspectRatioSurfaceView
