@@ -73,12 +73,14 @@
     <FrameLayout
         android:id="@+id/viewportContainer"
         android:layout_width="match_parent"
-        android:layout_height="250dp">
+        android:layout_height="250dp"
+        android:background="#000000">
 
-        <SurfaceView
+        <com.brownian.tracker.ui.AspectRatioSurfaceView
             android:id="@+id/viewFinder"
             android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+            android:layout_height="match_parent"
+            android:layout_gravity="center" />
 
         <ImageView
             android:id="@+id/simCanvas"

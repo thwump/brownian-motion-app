@@ -19,6 +19,7 @@ import androidx.annotation.RequiresPermission
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.impl.TagBundle
 import androidx.lifecycle.LifecycleOwner
+import com.brownian.tracker.ui.AspectRatioSurfaceView
 import java.nio.ByteBuffer
 import java.util.concurrent.Executor
 import kotlin.coroutines.resume
@@ -37,7 +38,7 @@ private const val MAX_IMAGES = 3
 class Camera2Manager(
     private val context: Context,
     private val lifecycleOwner: LifecycleOwner,
-    private val surfaceView: SurfaceView,
+    private val surfaceView: AspectRatioSurfaceView,
     private val onFrameAnalyzer: (ImageProxy) -> Unit
 ) {
     
@@ -171,6 +172,11 @@ class Camera2Manager(
         minFocusDistance = capabilities.minFocusDistance
         
         Log.d(TAG, "Selected camera ${capabilities.cameraId}: ${capabilities.maxYuvWidth}x${capabilities.maxYuvHeight}")
+        
+        // Set aspect ratio on surface view to match sensor - CRITICAL for accurate measurements!
+        surfaceView.post {
+            surfaceView.setAspectRatio(capabilities.maxYuvWidth, capabilities.maxYuvHeight)
+        }
         
         // Create ImageReader for YUV analysis frames
         imageReader = ImageReader.newInstance(
