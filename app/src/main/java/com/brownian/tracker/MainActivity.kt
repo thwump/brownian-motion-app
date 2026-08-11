@@ -92,7 +92,6 @@ class MainActivity : AppCompatActivity() {
                     0 -> switchMode("sim")
                     1 -> switchMode("camera")
                     2 -> switchMode("video")
-                    3 -> switchMode("analytics")
                 }
             }
             override fun onTabUnselected(tab: com.google.android.material.tabs.TabLayout.Tab) {}
@@ -105,13 +104,12 @@ class MainActivity : AppCompatActivity() {
         binding.panelSim.visibility = if (mode == "sim") View.VISIBLE else View.GONE
         binding.panelCamera.visibility = if (mode == "camera") View.VISIBLE else View.GONE
         binding.panelVideo.visibility = if (mode == "video") View.VISIBLE else View.GONE
-        binding.panelAnalytics.visibility = if (mode == "analytics") View.VISIBLE else View.GONE
 
         binding.viewFinder.visibility = if (mode == "camera") View.VISIBLE else View.GONE
         binding.simCanvas.visibility = if (mode == "sim") View.VISIBLE else View.GONE
 
         if (mode == "camera") {
-            binding.tvStatusHud.text = "Tracking • Live CameraX Sensor Stream"
+            binding.tvStatusHud.text = "Tracking • Live Camera2 Sensor Stream"
             stopSimulationLoop()
             if (allPermissionsGranted()) {
                 startCameraX()
@@ -123,9 +121,10 @@ class MainActivity : AppCompatActivity() {
             detector.invert = true
             if (::cameraManager.isInitialized) cameraManager.shutdown()
             startSimulationLoop()
-        } else if (mode == "analytics") {
-            updateAnalyticsDashboard()
         }
+        
+        // Update analytics for current mode
+        updateAnalyticsDashboard()
     }
 
     private fun setupUIControls() {
@@ -243,6 +242,24 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnExportCSV.setOnClickListener {
+            exportDataCSV()
+        }
+
+        // Export buttons for Camera mode
+        binding.btnExportJSONCamera.setOnClickListener {
+            exportDataJSON()
+        }
+
+        binding.btnExportCSVCamera.setOnClickListener {
+            exportDataCSV()
+        }
+
+        // Export buttons for Video mode
+        binding.btnExportJSONVideo.setOnClickListener {
+            exportDataJSON()
+        }
+
+        binding.btnExportCSVVideo.setOnClickListener {
             exportDataCSV()
         }
 
@@ -674,24 +691,43 @@ class MainActivity : AppCompatActivity() {
 
         runOnUiThread {
             updateUI(cumul.D_converged, cumul.T_converged_C, displayMeanDiam, cumul.totalSteps, cumul.stdErrPercent)
-            if (activeMode == "analytics") {
-                updateAnalyticsDashboard()
-            }
+            // Always update analytics dashboard with latest data
+            updateAnalyticsDashboard()
         }
     }
 
     private fun updateAnalyticsDashboard() {
         val allTracks = tracker.getAllTracks()
         val msdResult = physics.calculateMSD(allTracks, 20)
-        binding.msdChartView.updateMsdData(msdResult)
-
         val polyData = physics.calculatePolydisperseSizing(allTracks, simulator.tempCelsius, simulator.viscosityMpaSec)
 
-        binding.psdChartView.updateHistogramData(
-            ChartType.PSD_HISTOGRAM,
-            polyData.sizeHistogram.bins,
-            polyData.sizeHistogram.counts
-        )
+        // Update the appropriate chart views based on active mode
+        when (activeMode) {
+            "sim" -> {
+                binding.msdChartView.updateMsdData(msdResult)
+                binding.psdChartView.updateHistogramData(
+                    ChartType.PSD_HISTOGRAM,
+                    polyData.sizeHistogram.bins,
+                    polyData.sizeHistogram.counts
+                )
+            }
+            "camera" -> {
+                binding.msdChartViewCamera.updateMsdData(msdResult)
+                binding.psdChartViewCamera.updateHistogramData(
+                    ChartType.PSD_HISTOGRAM,
+                    polyData.sizeHistogram.bins,
+                    polyData.sizeHistogram.counts
+                )
+            }
+            "video" -> {
+                binding.msdChartViewVideo.updateMsdData(msdResult)
+                binding.psdChartViewVideo.updateHistogramData(
+                    ChartType.PSD_HISTOGRAM,
+                    polyData.sizeHistogram.bins,
+                    polyData.sizeHistogram.counts
+                )
+            }
+        }
     }
 
     private fun updateUI(D: Double, tempC: Double, meanDiam: Double, totalSteps: Long = 0, stdErr: Double = 0.0) {
@@ -750,8 +786,7 @@ class MainActivity : AppCompatActivity() {
                 experimentalParams = experimentalParams
             )
 
-            binding.tvExportStatus.text = "✅ Exported: ${file.name}"
-            Toast.makeText(this, "JSON exported successfully!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "✅ Exported: ${file.name}", Toast.LENGTH_SHORT).show()
 
             // Offer to share
             AlertDialog.Builder(this)
@@ -762,8 +797,7 @@ class MainActivity : AppCompatActivity() {
                 .show()
 
         } catch (e: Exception) {
-            binding.tvExportStatus.text = "❌ Export failed: ${e.message}"
-            Toast.makeText(this, "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "❌ Export failed: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -780,8 +814,7 @@ class MainActivity : AppCompatActivity() {
                 scaleMicronsPerPixel = physics.scaleMicronsPerPixel
             )
 
-            binding.tvExportStatus.text = "✅ Exported: ${file.name}"
-            Toast.makeText(this, "CSV exported successfully!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "✅ Exported: ${file.name}", Toast.LENGTH_SHORT).show()
 
             // Offer to share
             AlertDialog.Builder(this)
@@ -792,8 +825,7 @@ class MainActivity : AppCompatActivity() {
                 .show()
 
         } catch (e: Exception) {
-            binding.tvExportStatus.text = "❌ Export failed: ${e.message}"
-            Toast.makeText(this, "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "❌ Export failed: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 

@@ -62,11 +62,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="📁 Video" />
-
-        <com.google.android.material.tabs.TabItem
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="📊 Analytics" />
     </com.google.android.material.tabs.TabLayout>
 
     <!-- Camera Preview & Viewport Canvas Container -->
@@ -412,6 +407,56 @@
                     android:layout_height="wrap_content"
                     android:max="100"
                     android:progress="20" />
+
+                <!-- Analytics Section for Simulation -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📊 Live Analytics (Simulation Data)"
+                    android:textColor="@color/text_main"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginBottom="8dp" />
+
+                <com.brownian.tracker.ui.AnalyticsChartView
+                    android:id="@+id/msdChartView"
+                    android:layout_width="match_parent"
+                    android:layout_height="160dp" />
+
+                <com.brownian.tracker.ui.AnalyticsChartView
+                    android:id="@+id/psdChartView"
+                    android:layout_width="match_parent"
+                    android:layout_height="160dp"
+                    android:layout_marginTop="8dp" />
+
+                <!-- Export Data Section -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="12dp">
+
+                    <Button
+                        android:id="@+id/btnExportJSON"
+                        style="@style/Widget.Material3.Button"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Export JSON"
+                        android:textColor="#0b0f19"
+                        android:backgroundTint="@color/accent_cyan" />
+
+                    <Button
+                        android:id="@+id/btnExportCSV"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Export CSV"
+                        android:textColor="@color/accent_cyan"
+                        android:layout_marginStart="8dp" />
+                </LinearLayout>
             </LinearLayout>
 
             <!-- TAB 2: LIVE CAMERA CONTROLS -->
@@ -644,6 +689,56 @@
                     android:max="100"
                     android:progress="50" />
 
+                <!-- Analytics Section for Camera -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📊 Live Analytics (Camera Data)"
+                    android:textColor="@color/text_main"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginBottom="8dp" />
+
+                <com.brownian.tracker.ui.AnalyticsChartView
+                    android:id="@+id/msdChartViewCamera"
+                    android:layout_width="match_parent"
+                    android:layout_height="160dp" />
+
+                <com.brownian.tracker.ui.AnalyticsChartView
+                    android:id="@+id/psdChartViewCamera"
+                    android:layout_width="match_parent"
+                    android:layout_height="160dp"
+                    android:layout_marginTop="8dp" />
+
+                <!-- Export Data Section -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="12dp">
+
+                    <Button
+                        android:id="@+id/btnExportJSONCamera"
+                        style="@style/Widget.Material3.Button"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Export JSON"
+                        android:textColor="#0b0f19"
+                        android:backgroundTint="@color/accent_cyan" />
+
+                    <Button
+                        android:id="@+id/btnExportCSVCamera"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Export CSV"
+                        android:textColor="@color/accent_cyan"
+                        android:layout_marginStart="8dp" />
+                </LinearLayout>
+
             </LinearLayout>
 
             <!-- TAB 3: VIDEO FILE CONTROLS -->
@@ -670,46 +765,38 @@
                     android:textColor="#0b0f19"
                     android:backgroundTint="@color/accent_cyan"
                     android:layout_marginTop="12dp" />
-            </LinearLayout>
 
-            <!-- TAB 4: ANALYTICS DASHBOARD -->
-            <LinearLayout
-                android:id="@+id/panelAnalytics"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="12dp"
-                android:visibility="gone">
-
-                <com.brownian.tracker.ui.AnalyticsChartView
-                    android:id="@+id/msdChartView"
-                    android:layout_width="match_parent"
-                    android:layout_height="180dp" />
-
-                <com.brownian.tracker.ui.AnalyticsChartView
-                    android:id="@+id/psdChartView"
-                    android:layout_width="match_parent"
-                    android:layout_height="180dp"
-                    android:layout_marginTop="12dp" />
-
-                <!-- Export Data Section -->
+                <!-- Analytics Section for Video -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="📥 Export Data"
+                    android:text="📊 Live Analytics (Video Data)"
                     android:textColor="@color/text_main"
-                    android:textSize="16sp"
+                    android:textSize="14sp"
                     android:textStyle="bold"
                     android:layout_marginTop="16dp"
                     android:layout_marginBottom="8dp" />
 
+                <com.brownian.tracker.ui.AnalyticsChartView
+                    android:id="@+id/msdChartViewVideo"
+                    android:layout_width="match_parent"
+                    android:layout_height="160dp" />
+
+                <com.brownian.tracker.ui.AnalyticsChartView
+                    android:id="@+id/psdChartViewVideo"
+                    android:layout_width="match_parent"
+                    android:layout_height="160dp"
+                    android:layout_marginTop="8dp" />
+
+                <!-- Export Data Section -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:orientation="horizontal"
+                    android:layout_marginTop="12dp">
 
                     <Button
-                        android:id="@+id/btnExportJSON"
+                        android:id="@+id/btnExportJSONVideo"
                         style="@style/Widget.Material3.Button"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
@@ -719,7 +806,7 @@
                         android:backgroundTint="@color/accent_cyan" />
 
                     <Button
-                        android:id="@+id/btnExportCSV"
+                        android:id="@+id/btnExportCSVVideo"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
@@ -728,15 +815,6 @@
                         android:textColor="@color/accent_cyan"
                         android:layout_marginStart="8dp" />
                 </LinearLayout>
-
-                <TextView
-                    android:id="@+id/tvExportStatus"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Export includes all tracks, MSD curves, and physics results"
-                    android:textColor="@color/text_muted"
-                    android:textSize="11sp"
-                    android:layout_marginTop="4dp" />
             </LinearLayout>
 
         </FrameLayout>
