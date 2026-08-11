@@ -692,14 +692,22 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             updateUI(cumul.D_converged, cumul.T_converged_C, displayMeanDiam, cumul.totalSteps, cumul.stdErrPercent)
             // Always update analytics dashboard with latest data
-            updateAnalyticsDashboard()
+            updateAnalyticsDashboard(cumul.D_converged)
         }
     }
 
-    private fun updateAnalyticsDashboard() {
+    private fun updateAnalyticsDashboard(measuredDiffusion: Double = 0.214) {
         val allTracks = tracker.getAllTracks()
         val msdResult = physics.calculateMSD(allTracks, 20)
         val polyData = physics.calculatePolydisperseSizing(allTracks, simulator.tempCelsius, simulator.viscosityMpaSec)
+
+        // Calculate fundamental constants (Perrin's Nobel Prize experiment!)
+        val constants = physics.calculateFundamentalConstants(
+            measuredDiffusion = measuredDiffusion,
+            knownTempCelsius = simulator.tempCelsius,
+            knownViscosity = simulator.viscosityMpaSec,
+            knownRadiusMicrons = simulator.particleRadiusMicrons
+        )
 
         // Update the appropriate chart views based on active mode
         when (activeMode) {
@@ -710,6 +718,11 @@ class MainActivity : AppCompatActivity() {
                     polyData.sizeHistogram.bins,
                     polyData.sizeHistogram.counts
                 )
+                updatePerrinDisplay(
+                    binding.tvBoltzmannConstant,
+                    binding.tvAvogadroNumber,
+                    constants
+                )
             }
             "camera" -> {
                 binding.msdChartViewCamera.updateMsdData(msdResult)
@@ -717,6 +730,11 @@ class MainActivity : AppCompatActivity() {
                     ChartType.PSD_HISTOGRAM,
                     polyData.sizeHistogram.bins,
                     polyData.sizeHistogram.counts
+                )
+                updatePerrinDisplay(
+                    binding.tvBoltzmannConstantCamera,
+                    binding.tvAvogadroNumberCamera,
+                    constants
                 )
             }
             "video" -> {
@@ -726,8 +744,31 @@ class MainActivity : AppCompatActivity() {
                     polyData.sizeHistogram.bins,
                     polyData.sizeHistogram.counts
                 )
+                updatePerrinDisplay(
+                    binding.tvBoltzmannConstantVideo,
+                    binding.tvAvogadroNumberVideo,
+                    constants
+                )
             }
         }
+    }
+
+    private fun updatePerrinDisplay(
+        tvBoltzmann: android.widget.TextView,
+        tvAvogadro: android.widget.TextView,
+        constants: com.brownian.tracker.physics.FundamentalConstantsResult
+    ) {
+        // Format with scientific notation
+        val kB_str = String.format("%.3e", constants.measuredBoltzmann)
+        val kB_ref_str = String.format("%.3e", constants.referenceBoltzmann)
+        val kB_error = String.format("%.1f", kotlin.math.abs(constants.boltzmannErrorPercent))
+        
+        val NA_str = String.format("%.3e", constants.measuredAvogadro)
+        val NA_ref_str = String.format("%.3e", constants.referenceAvogadro)
+        val NA_error = String.format("%.1f", kotlin.math.abs(constants.avogadroErrorPercent))
+
+        tvBoltzmann.text = "k_B = $kB_str J/K (±$kB_error%) | True: $kB_ref_str"
+        tvAvogadro.text = "N_A = $NA_str /mol (±$NA_error%) | True: $NA_ref_str"
     }
 
     private fun updateUI(D: Double, tempC: Double, meanDiam: Double, totalSteps: Long = 0, stdErr: Double = 0.0) {

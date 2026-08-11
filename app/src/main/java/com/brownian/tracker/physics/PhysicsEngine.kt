@@ -7,12 +7,23 @@ import kotlin.math.pow
 import kotlin.math.sqrt
 
 const val BOLTZMANN_REF = 1.380649e-23 // J/K
+const val GAS_CONSTANT_R = 8.314462618 // J/(mol·K)
+const val AVOGADRO_REF = 6.02214076e23 // particles/mol
 
 data class CumulativePhysicsResult(
     val D_converged: Double,
     val T_converged_C: Double,
     val totalSteps: Long,
     val stdErrPercent: Double
+)
+
+data class FundamentalConstantsResult(
+    val measuredBoltzmann: Double,        // k_B measured from experiment (J/K)
+    val referenceBoltzmann: Double,       // k_B known value (J/K)
+    val boltzmannErrorPercent: Double,    // % error
+    val measuredAvogadro: Double,         // N_A = R / k_B (particles/mol)
+    val referenceAvogadro: Double,        // N_A known value
+    val avogadroErrorPercent: Double      // % error
 )
 
 data class MsdPoint(val dt: Double, val msd: Double)
@@ -133,6 +144,43 @@ class PhysicsEngine {
             T_converged_C = T_converged_C,
             totalSteps = totalCumulativeSteps,
             stdErrPercent = stdErrPercent
+        )
+    }
+
+    /**
+     * Calculate Boltzmann constant and Avogadro's number from Brownian motion.
+     * This recreates Jean Perrin's 1926 Nobel Prize experiment!
+     * 
+     * Given: measured D, known T, η, and particle radius a
+     * Solve Einstein-Stokes equation backwards: k_B = 6πηaD / T
+     * Then calculate: N_A = R / k_B
+     */
+    fun calculateFundamentalConstants(
+        measuredDiffusion: Double,     // μm²/s
+        knownTempCelsius: Double,      // °C (from external thermometer)
+        knownViscosity: Double,        // mPa·s
+        knownRadiusMicrons: Double     // μm (from manufacturer or calibration)
+    ): FundamentalConstantsResult {
+        val T_kelvin = knownTempCelsius + 273.15
+        val eta_pascal_sec = knownViscosity * 1e-3
+        val D_m2_s = measuredDiffusion * 1e-12
+        val a_meters = knownRadiusMicrons * 1e-6
+
+        // Solve for Boltzmann constant: k_B = 6πηaD / T
+        val k_B_measured = (6.0 * Math.PI * eta_pascal_sec * a_meters * D_m2_s) / T_kelvin
+        val k_B_error = ((k_B_measured - BOLTZMANN_REF) / BOLTZMANN_REF) * 100.0
+
+        // Calculate Avogadro's number: N_A = R / k_B
+        val N_A_measured = GAS_CONSTANT_R / k_B_measured
+        val N_A_error = ((N_A_measured - AVOGADRO_REF) / AVOGADRO_REF) * 100.0
+
+        return FundamentalConstantsResult(
+            measuredBoltzmann = k_B_measured,
+            referenceBoltzmann = BOLTZMANN_REF,
+            boltzmannErrorPercent = k_B_error,
+            measuredAvogadro = N_A_measured,
+            referenceAvogadro = AVOGADRO_REF,
+            avogadroErrorPercent = N_A_error
         )
     }
 

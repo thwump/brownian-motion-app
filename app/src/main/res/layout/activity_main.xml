@@ -430,6 +430,52 @@
                     android:layout_height="160dp"
                     android:layout_marginTop="8dp" />
 
+                <!-- Perrin's Nobel Prize Experiment: Fundamental Constants -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="#1a1e2e"
+                    android:padding="12dp"
+                    android:layout_marginTop="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🏆 Jean Perrin's Nobel Prize Experiment (1926)"
+                        android:textColor="@color/accent_green"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Proving atoms exist by measuring fundamental constants from Brownian motion"
+                        android:textColor="@color/text_muted"
+                        android:textSize="11sp"
+                        android:layout_marginTop="2dp"
+                        android:layout_marginBottom="8dp" />
+
+                    <TextView
+                        android:id="@+id/tvBoltzmannConstant"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="k_B = 1.38 × 10⁻²³ J/K (calculating...)"
+                        android:textColor="@color/accent_cyan"
+                        android:textSize="12sp"
+                        android:fontFamily="monospace" />
+
+                    <TextView
+                        android:id="@+id/tvAvogadroNumber"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="N_A = 6.02 × 10²³ /mol (calculating...)"
+                        android:textColor="@color/accent_magenta"
+                        android:textSize="12sp"
+                        android:fontFamily="monospace"
+                        android:layout_marginTop="4dp" />
+                </LinearLayout>
+
                 <!-- Export Data Section -->
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -711,6 +757,52 @@
                     android:layout_height="160dp"
                     android:layout_marginTop="8dp" />
 
+                <!-- Perrin's Nobel Prize Experiment: Fundamental Constants -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="#1a1e2e"
+                    android:padding="12dp"
+                    android:layout_marginTop="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🏆 Jean Perrin's Nobel Prize Experiment (1926)"
+                        android:textColor="@color/accent_green"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Proving atoms exist by measuring fundamental constants from Brownian motion"
+                        android:textColor="@color/text_muted"
+                        android:textSize="11sp"
+                        android:layout_marginTop="2dp"
+                        android:layout_marginBottom="8dp" />
+
+                    <TextView
+                        android:id="@+id/tvBoltzmannConstantCamera"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="k_B = 1.38 × 10⁻²³ J/K (calculating...)"
+                        android:textColor="@color/accent_cyan"
+                        android:textSize="12sp"
+                        android:fontFamily="monospace" />
+
+                    <TextView
+                        android:id="@+id/tvAvogadroNumberCamera"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="N_A = 6.02 × 10²³ /mol (calculating...)"
+                        android:textColor="@color/accent_magenta"
+                        android:textSize="12sp"
+                        android:fontFamily="monospace"
+                        android:layout_marginTop="4dp" />
+                </LinearLayout>
+
                 <!-- Export Data Section -->
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -787,6 +879,52 @@
                     android:layout_width="match_parent"
                     android:layout_height="160dp"
                     android:layout_marginTop="8dp" />
+
+                <!-- Perrin's Nobel Prize Experiment: Fundamental Constants -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="#1a1e2e"
+                    android:padding="12dp"
+                    android:layout_marginTop="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🏆 Jean Perrin's Nobel Prize Experiment (1926)"
+                        android:textColor="@color/accent_green"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Proving atoms exist by measuring fundamental constants from Brownian motion"
+                        android:textColor="@color/text_muted"
+                        android:textSize="11sp"
+                        android:layout_marginTop="2dp"
+                        android:layout_marginBottom="8dp" />
+
+                    <TextView
+                        android:id="@+id/tvBoltzmannConstantVideo"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="k_B = 1.38 × 10⁻²³ J/K (calculating...)"
+                        android:textColor="@color/accent_cyan"
+                        android:textSize="12sp"
+                        android:fontFamily="monospace" />
+
+                    <TextView
+                        android:id="@+id/tvAvogadroNumberVideo"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="N_A = 6.02 × 10²³ /mol (calculating...)"
+                        android:textColor="@color/accent_magenta"
+                        android:textSize="12sp"
+                        android:fontFamily="monospace"
+                        android:layout_marginTop="4dp" />
+                </LinearLayout>
 
                 <!-- Export Data Section -->
                 <LinearLayout
