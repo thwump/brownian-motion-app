@@ -45,24 +45,12 @@ class AspectRatioSurfaceView @JvmOverloads constructor(
         val width = MeasureSpec.getSize(widthMeasureSpec)
         val height = MeasureSpec.getSize(heightMeasureSpec)
         
-        // Calculate dimensions that maintain aspect ratio
-        // We want to fit within the container while maintaining correct aspect ratio
-        val viewAspectRatio = width.toFloat() / height.toFloat()
+        // CROP TO FILL WIDTH: Always use full width, calculate height to maintain aspect ratio
+        // This crops top/bottom if needed but fills the screen width
+        val finalWidth = width
+        val finalHeight = (width / aspectRatio).toInt()
         
-        val finalWidth: Int
-        val finalHeight: Int
-        
-        if (viewAspectRatio > aspectRatio) {
-            // Container is wider than needed - fit by height
-            finalHeight = height
-            finalWidth = (height * aspectRatio).toInt()
-        } else {
-            // Container is taller than needed - fit by width
-            finalWidth = width
-            finalHeight = (width / aspectRatio).toInt()
-        }
-        
-        Log.d("AspectRatioSurfaceView", "Container: ${width}x${height}, Aspect: $aspectRatio, Final: ${finalWidth}x${finalHeight}")
+        Log.d("AspectRatioSurfaceView", "Container: ${width}x${height}, Aspect: $aspectRatio, Fill width mode - Final: ${finalWidth}x${finalHeight}")
         
         setMeasuredDimension(finalWidth, finalHeight)
     }
