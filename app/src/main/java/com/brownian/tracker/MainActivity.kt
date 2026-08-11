@@ -123,8 +123,7 @@ class MainActivity : AppCompatActivity() {
             startSimulationLoop()
         }
         
-        // Update analytics for current mode
-        updateAnalyticsDashboard()
+        // Analytics will update automatically once tracking starts
     }
 
     private fun setupUIControls() {
@@ -691,22 +690,28 @@ class MainActivity : AppCompatActivity() {
 
         runOnUiThread {
             updateUI(cumul.D_converged, cumul.T_converged_C, displayMeanDiam, cumul.totalSteps, cumul.stdErrPercent)
-            // Always update analytics dashboard with latest data
-            updateAnalyticsDashboard(cumul.D_converged)
+            // Update analytics dashboard with measured D, correct radius, and KNOWN temperature
+            // (In real experiment, you'd use thermometer reading, not calculated temperature)
+            updateAnalyticsDashboard(cumul.D_converged, refRadius, simulator.tempCelsius)
         }
     }
 
-    private fun updateAnalyticsDashboard(measuredDiffusion: Double = 0.214) {
+    private fun updateAnalyticsDashboard(
+        measuredDiffusion: Double = 0.214, 
+        particleRadius: Double = 1.0,
+        knownTemperature: Double = 20.0  // From thermometer, not from Brownian motion!
+    ) {
         val allTracks = tracker.getAllTracks()
         val msdResult = physics.calculateMSD(allTracks, 20)
         val polyData = physics.calculatePolydisperseSizing(allTracks, simulator.tempCelsius, simulator.viscosityMpaSec)
 
         // Calculate fundamental constants (Perrin's Nobel Prize experiment!)
+        // Use KNOWN temperature (from thermometer), measured D, and known radius
         val constants = physics.calculateFundamentalConstants(
             measuredDiffusion = measuredDiffusion,
-            knownTempCelsius = simulator.tempCelsius,
+            knownTempCelsius = knownTemperature,  // From thermometer, not calculated!
             knownViscosity = simulator.viscosityMpaSec,
-            knownRadiusMicrons = simulator.particleRadiusMicrons
+            knownRadiusMicrons = particleRadius  // Use same radius as temperature calculation!
         )
 
         // Update the appropriate chart views based on active mode
