@@ -61,11 +61,12 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // HD 1280x720 Processing & Simulation Buffer for real-time 60 FPS performance
-        simulator = PhysicsSimulator(1280, 720)
+        // 960x1280 (3:4 portrait) to match camera sensor aspect ratio (3072x4080)
+        // This prevents particle distortion in simulation mode
+        simulator = PhysicsSimulator(960, 1280)
         videoLoader = VideoFileLoader(this)
         dataExporter = DataExporter(this)
-        simBitmap = Bitmap.createBitmap(1280, 720, Bitmap.Config.ARGB_8888)
+        simBitmap = Bitmap.createBitmap(960, 1280, Bitmap.Config.ARGB_8888)
 
         // Explicitly set Fluid Drift = 0.0, Particle Radius = 1.0 μm (2.0 μm diam), and Drift Correction OFF by default
         simulator.driftMicronsPerSec = 0.0
@@ -571,7 +572,7 @@ class MainActivity : AppCompatActivity() {
 
                 runOnUiThread {
                     binding.simCanvas.setImageBitmap(bmp)
-                    binding.overlayView.updateData(detections, tracks, 1280, 720)
+                    binding.overlayView.updateData(detections, tracks, 960, 1280)
                     binding.tvFpsHud.text = String.format("%d FPS", liveFps)
                 }
 

@@ -32,6 +32,8 @@ class OverlayView @JvmOverloads constructor(
     private var tracksSnapshot: List<RenderTrackSnapshot> = emptyList()
     private var scaleX: Float = 1.0f
     private var scaleY: Float = 1.0f
+    private var offsetX: Float = 0.0f
+    private var offsetY: Float = 0.0f
 
     var isOverlayEnabled: Boolean = true
     var isCalibrationMode: Boolean = false
@@ -111,8 +113,19 @@ class OverlayView @JvmOverloads constructor(
         this.tracksSnapshot = tracksCopy
 
         if (procWidth > 0 && procHeight > 0 && width > 0 && height > 0) {
-            this.scaleX = width.toFloat() / procWidth.toFloat()
-            this.scaleY = height.toFloat() / procHeight.toFloat()
+            // For centerCrop: use uniform scale to fill, then calculate offset for cropped dimension
+            val scaleWidth = width.toFloat() / procWidth.toFloat()
+            val scaleHeight = height.toFloat() / procHeight.toFloat()
+            val scale = Math.max(scaleWidth, scaleHeight) // centerCrop uses max scale
+            
+            this.scaleX = scale
+            this.scaleY = scale
+            
+            // Calculate offsets to center the cropped image
+            val scaledProcWidth = procWidth * scale
+            val scaledProcHeight = procHeight * scale
+            this.offsetX = (width - scaledProcWidth) / 2f
+            this.offsetY = (height - scaledProcHeight) / 2f
         }
         postInvalidate()
     }
@@ -168,8 +181,8 @@ class OverlayView @JvmOverloads constructor(
                     val p1 = pts[i - 1]
                     val p2 = pts[i]
                     canvas.drawLine(
-                        p1.x * scaleX, p1.y * scaleY,
-                        p2.x * scaleX, p2.y * scaleY,
+                        p1.x * scaleX + offsetX, p1.y * scaleY + offsetY,
+                        p2.x * scaleX + offsetX, p2.y * scaleY + offsetY,
                         trackPaint
                     )
                 }
@@ -178,9 +191,9 @@ class OverlayView @JvmOverloads constructor(
             // Draw Particle Detection Bounding Rings
             val particlesToDraw = particlesSnapshot
             for (particle in particlesToDraw) {
-                val cx = particle.x * scaleX
-                val cy = particle.y * scaleY
-                val r = Math.max(12f, particle.radius * ((scaleX + scaleY) / 2f))
+                val cx = particle.x * scaleX + offsetX
+                val cy = particle.y * scaleY + offsetY
+                val r = Math.max(12f, particle.radius * scaleX)
 
                 canvas.drawCircle(cx, cy, r, detectionPaint)
                 canvas.drawCircle(cx, cy, 5f, centerPaint)
