@@ -171,11 +171,24 @@ class Camera2Manager(
         activeCharacteristics = capabilities.characteristics
         minFocusDistance = capabilities.minFocusDistance
         
-        Log.d(TAG, "Selected camera ${capabilities.cameraId}: ${capabilities.maxYuvWidth}x${capabilities.maxYuvHeight}")
+        // Get sensor orientation to determine if we need to swap width/height for portrait mode
+        val sensorOrientation = capabilities.characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 0
         
-        // Set aspect ratio on surface view to match sensor - CRITICAL for accurate measurements!
+        Log.d(TAG, "Selected camera ${capabilities.cameraId}: ${capabilities.maxYuvWidth}x${capabilities.maxYuvHeight}, sensor orientation: $sensorOrientation")
+        
+        // Set aspect ratio on surface view AND holder to match sensor - CRITICAL for accurate measurements!
+        // For portrait mode (sensor orientation 90 or 270), swap width and height
+        // Use native sensor resolution for both preview and analysis to avoid any scaling/stretching
         surfaceView.post {
-            surfaceView.setAspectRatio(capabilities.maxYuvWidth, capabilities.maxYuvHeight)
+            // Swap dimensions if sensor is rotated 90 or 270 degrees (portrait orientation)
+            val needsSwap = sensorOrientation == 90 || sensorOrientation == 270
+            val displayWidth = if (needsSwap) capabilities.maxYuvHeight else capabilities.maxYuvWidth
+            val displayHeight = if (needsSwap) capabilities.maxYuvWidth else capabilities.maxYuvHeight
+            
+            surfaceView.setAspectRatio(displayWidth, displayHeight)
+            // Set holder to sensor size (not swapped - camera API handles rotation)
+            surfaceView.holder.setFixedSize(capabilities.maxYuvWidth, capabilities.maxYuvHeight)
+            Log.d(TAG, "Display aspect: ${displayWidth}x${displayHeight}, Holder size: ${capabilities.maxYuvWidth}x${capabilities.maxYuvHeight}")
         }
         
         // Create ImageReader for YUV analysis frames
@@ -240,6 +253,10 @@ class Camera2Manager(
             Log.w(TAG, "Surface is not valid, cannot create capture session")
             return
         }
+        
+        // Log surface dimensions for debugging
+        val surfaceFrame = surfaceView.holder.surfaceFrame
+        Log.d(TAG, "Surface frame: ${surfaceFrame.width()}x${surfaceFrame.height()}")
         
         previewSurface = surface
         val previewSurf = previewSurface ?: return
