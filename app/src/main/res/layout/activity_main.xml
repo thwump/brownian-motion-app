@@ -73,7 +73,7 @@
     <FrameLayout
         android:id="@+id/viewportContainer"
         android:layout_width="match_parent"
-        android:layout_height="500dp"
+        android:layout_height="400dp"
         android:background="#000000">
 
         <com.brownian.tracker.ui.AspectRatioSurfaceView
@@ -86,7 +86,7 @@
             android:id="@+id/simCanvas"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scaleType="fitXY" />
+            android:scaleType="fitCenter" />
 
         <com.brownian.tracker.ui.OverlayView
             android:id="@+id/overlayView"
