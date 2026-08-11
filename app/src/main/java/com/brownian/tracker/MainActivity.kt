@@ -16,7 +16,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.brownian.tracker.camera.CameraXManager
+import com.brownian.tracker.camera.Camera2Manager
 import com.brownian.tracker.databinding.ActivityMainBinding
 import com.brownian.tracker.detector.DetectedParticle
 import com.brownian.tracker.detector.ParticleDetector
@@ -34,7 +34,7 @@ import java.util.concurrent.TimeUnit
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    private lateinit var cameraManager: CameraXManager
+    private lateinit var cameraManager: Camera2Manager
     private lateinit var simulator: PhysicsSimulator
     private lateinit var videoLoader: VideoFileLoader
     private lateinit var dataExporter: DataExporter
@@ -173,38 +173,55 @@ class MainActivity : AppCompatActivity() {
 
         // -------------------------------------------------------------
         // MANUAL FOCUS CONTROLS FOR MICROSCOPY
-        // Note: CameraX doesn't support direct focus distance control
-        // The slider triggers autofocus at center point - not true manual focus
+        // Camera2 API provides true focus distance control in diopters
+        // 0.0 = infinity, maxFocusDistance = closest possible focus
+        // For microscopy: Use values close to maxFocusDistance
         // -------------------------------------------------------------
         binding.seekBarFocus.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser && ::cameraManager.isInitialized) {
-                    val focusValue = progress / 100.0f
-                    // Trigger focus at center point (workaround for CameraX limitation)
-                    cameraManager.setManualFocus(focusValue)
-                    binding.tvFocusLabel.text = String.format("Focus: %.2f (tap Lock to hold)", focusValue)
+                    // Map slider 0-100 to device's focus distance range
+                    // For microscopy, we want close focus (high diopter values)
+                    val maxFocus = cameraManager.getMaxFocusDistance()
+                    val focusDistance = (progress / 100.0f) * maxFocus
+                    
+                    cameraManager.setManualFocus(focusDistance)
+                    
+                    if (maxFocus > 0f) {
+                        binding.tvFocusLabel.text = String.format("Focus: %.2f D (%.0f%% close)", 
+                            focusDistance, progress.toFloat())
+                    } else {
+                        binding.tvFocusLabel.text = "Focus: Manual not supported"
+                    }
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                // When user releases slider, trigger AF lock at center
-                if (::cameraManager.isInitialized) {
-                    cameraManager.setManualFocus(0.5f)
-                }
+                // Keep the focus at the selected distance (no auto-revert)
             }
         })
 
         binding.btnLockFocus.setOnClickListener {
             if (::cameraManager.isInitialized) {
-                // Lock focus at center point
-                val success = cameraManager.setManualFocus(0.5f)
-                Toast.makeText(this, if (success) "Focus locked at center - prevents hunting!" else "Focus lock failed", Toast.LENGTH_SHORT).show()
+                // Lock focus at current slider position (for microscopy, typically high value = close focus)
+                val progress = binding.seekBarFocus.progress
+                val maxFocus = cameraManager.getMaxFocusDistance()
+                val focusDistance = (progress / 100.0f) * maxFocus
+                
+                val success = cameraManager.setManualFocus(focusDistance)
+                
+                if (success) {
+                    Toast.makeText(this, String.format("Focus locked at %.2f diopters - stable for measurement!", focusDistance), 
+                        Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Manual focus not supported on this device", Toast.LENGTH_SHORT).show()
+                }
             }
         }
 
         binding.btnAutoFocus.setOnClickListener {
             if (::cameraManager.isInitialized) {
-                // Cancel focus lock and return to continuous AF
+                // Return to continuous autofocus
                 val success = cameraManager.unlockAutoFocus()
                 binding.seekBarFocus.progress = 50
                 binding.tvFocusLabel.text = "Focus: Auto (continuous)"
@@ -571,14 +588,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startCameraX() {
-        cameraManager = CameraXManager(
+        cameraManager = Camera2Manager(
             context = this,
             lifecycleOwner = this,
-            previewView = binding.viewFinder
+            surfaceView = binding.viewFinder
         ) { imageProxy ->
             if (isPaused || activeMode != "camera") {
                 imageProxy.close()
-                return@CameraXManager
+                return@Camera2Manager
             }
 
             val nowClock = SystemClock.elapsedRealtime()
