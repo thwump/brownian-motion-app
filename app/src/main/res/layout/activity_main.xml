@@ -364,7 +364,7 @@
                         android:layout_marginTop="4dp"
                         android:layout_marginBottom="12dp" />
 
-                    <!-- Physics Concept Card -->
+                    <!-- 1. Physics Concept Card with Inline Contextual Wikipedia Links -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -388,74 +388,100 @@
                             android:textColor="@color/text_muted"
                             android:textSize="12sp"
                             android:layout_marginTop="6dp" />
+
+                        <!-- Contextual Link 1: Jean Perrin -->
+                        <Button
+                            android:id="@+id/btnWikiPerrin"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="📖 Read More: Jean Perrin (Wikipedia)"
+                            android:textColor="@color/accent_cyan"
+                            android:textSize="11sp"
+                            android:paddingHorizontal="10dp"
+                            android:layout_marginTop="6dp" />
+
+                        <!-- Contextual Link 2: Einstein's Brownian Motion Paper -->
+                        <Button
+                            android:id="@+id/btnWikiEinstein"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="📖 Read More: Einstein's 1905 Brownian Motion Theory (Wikipedia)"
+                            android:textColor="@color/accent_cyan"
+                            android:textSize="11sp"
+                            android:paddingHorizontal="10dp"
+                            android:layout_marginTop="4dp" />
                     </LinearLayout>
 
-                    <!-- Clickable Wikipedia Resources Section -->
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="🌐 External Scientific References (Wikipedia)"
-                        android:textColor="@color/accent_cyan"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="6dp" />
-
-                    <Button
-                        android:id="@+id/btnWikiPerrin"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="📖 Jean Perrin (1926 Nobel Prize in Physics)"
-                        android:textColor="@color/accent_cyan"
-                        android:gravity="start|center_vertical" />
-
-                    <Button
-                        android:id="@+id/btnWikiEinstein"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="📖 Albert Einstein's 1905 Brownian Motion Theory"
-                        android:textColor="@color/accent_cyan"
-                        android:gravity="start|center_vertical"
-                        android:layout_marginTop="4dp" />
-
-                    <Button
-                        android:id="@+id/btnWikiBoltzmann"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="📖 Boltzmann Constant (k_B = 1.381 × 10⁻²³ J/K)"
-                        android:textColor="@color/accent_cyan"
-                        android:gravity="start|center_vertical"
-                        android:layout_marginTop="4dp" />
-
-                    <Button
-                        android:id="@+id/btnWikiAvogadro"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="📖 Avogadro Constant (N_A = 6.022 × 10²³ /mol)"
-                        android:textColor="@color/accent_cyan"
-                        android:gravity="start|center_vertical"
-                        android:layout_marginTop="4dp" />
-
-                    <Button
-                        android:id="@+id/btnWikiNTA"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="📖 Nanoparticle Tracking Analysis (NTA)"
-                        android:textColor="@color/accent_cyan"
-                        android:gravity="start|center_vertical"
-                        android:layout_marginTop="4dp"
-                        android:layout_marginBottom="12dp" />
-
-                    <!-- Setup & Equipment Card -->
+                    <!-- 2. Fundamental Constants Card with Inline Contextual Wikipedia Links -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
                         android:background="#161e2e"
+                        android:padding="12dp"
+                        android:layout_marginBottom="12dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="⚛️ Fundamental Constants Extracted in Real Time"
+                            android:textColor="@color/accent_cyan"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="By tracking particle trajectories, this app calculates:"
+                            android:textColor="@color/text_muted"
+                            android:textSize="12sp"
+                            android:layout_marginTop="4dp" />
+
+                        <!-- Contextual Link 3: Boltzmann Constant -->
+                        <Button
+                            android:id="@+id/btnWikiBoltzmann"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="📖 Boltzmann Constant (k_B = 1.381 × 10⁻²³ J/K)"
+                            android:textColor="@color/accent_cyan"
+                            android:textSize="11sp"
+                            android:paddingHorizontal="10dp"
+                            android:layout_marginTop="6dp" />
+
+                        <!-- Contextual Link 4: Avogadro Constant -->
+                        <Button
+                            android:id="@+id/btnWikiAvogadro"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="📖 Avogadro Constant (N_A = 6.022 × 10²³ /mol)"
+                            android:textColor="@color/accent_cyan"
+                            android:textSize="11sp"
+                            android:paddingHorizontal="10dp"
+                            android:layout_marginTop="4dp" />
+
+                        <!-- Contextual Link 5: NTA Analysis -->
+                        <Button
+                            android:id="@+id/btnWikiNTA"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="📖 Nanoparticle Tracking Analysis (NTA Method)"
+                            android:textColor="@color/accent_cyan"
+                            android:textSize="11sp"
+                            android:paddingHorizontal="10dp"
+                            android:layout_marginTop="4dp" />
+                    </LinearLayout>
+
+                    <!-- 3. Setup & Equipment Card -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:background="#1a1e2e"
                         android:padding="12dp"
                         android:layout_marginBottom="12dp">
 
@@ -476,12 +502,12 @@
                             android:layout_marginTop="6dp" />
                     </LinearLayout>
 
-                    <!-- Calibration Card -->
+                    <!-- 4. Calibration Card -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:background="#1a1e2e"
+                        android:background="#161e2e"
                         android:padding="12dp"
                         android:layout_marginBottom="12dp">
 
@@ -496,7 +522,7 @@
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Exact lens magnification is not critical because scale is calibrated directly in micrometers per pixel (μm/px):\n1. Tap the 'Calibrate' button on the Sim, Camera, or Video tab.\n2. Drag the fine-tuning handles to align with a known distance (e.g., 1 mm mark on a ruler or stage micrometer).\n3. Enter physical distance in micrometers (1000 μm for 1 mm) &amp; tap 'Confirm Scale Calibration'."
+                            android:text="Exact lens magnification is not critical because scale is calibrated directly in micrometers per pixel (μm/px):\n1. Tap the 'Calibrate' button on the Sim, Camera, or Video tab.\n2. The video frame will freeze solid. Drag touch handles to align with a known distance (e.g., 1 mm mark on a ruler or stage micrometer).\n3. Enter physical distance in micrometers (1000 μm for 1 mm) &amp; tap 'Confirm Scale Calibration'."
                             android:textColor="@color/text_muted"
                             android:textSize="12sp"
                             android:layout_marginTop="6dp" />

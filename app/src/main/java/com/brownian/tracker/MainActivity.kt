@@ -4,13 +4,16 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.ImageFormat
+import android.graphics.Rect
+import android.graphics.YuvImage
 import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
 import android.text.Editable
 import android.text.Html
 import android.text.TextWatcher
-import android.text.method.LinkMovementMethod
 import android.view.View
 import android.widget.SeekBar
 import android.widget.Toast
@@ -30,6 +33,7 @@ import com.brownian.tracker.tracker.ParticleTracker
 import com.brownian.tracker.tracker.Vector2D
 import com.brownian.tracker.ui.ChartType
 import com.brownian.tracker.video.VideoFileLoader
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
@@ -53,6 +57,7 @@ class MainActivity : AppCompatActivity() {
     private var frameCounter = 0
     private var simScheduler: ScheduledExecutorService? = null
     private var simBitmap: Bitmap? = null
+    private var lastCameraFrameBitmap: Bitmap? = null
     private var isUpdatingFromCode = false
 
     private val videoPickerLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -117,7 +122,7 @@ class MainActivity : AppCompatActivity() {
         binding.tvIntroEquipmentText.text = Html.fromHtml(equipmentHtml, Html.FROM_HTML_MODE_LEGACY)
         binding.tvIntroQuickstartText.text = Html.fromHtml(quickstartHtml, Html.FROM_HTML_MODE_LEGACY)
 
-        // Clickable Wikipedia Web Resource Buttons
+        // Clickable Wikipedia Web Resource Buttons embedded contextually under each section
         binding.btnWikiPerrin.setOnClickListener { openUrl("https://en.wikipedia.org/wiki/Jean_Baptiste_Perrin") }
         binding.btnWikiEinstein.setOnClickListener { openUrl("https://en.wikipedia.org/wiki/Brownian_motion") }
         binding.btnWikiBoltzmann.setOnClickListener { openUrl("https://en.wikipedia.org/wiki/Boltzmann_constant") }
@@ -217,6 +222,15 @@ class MainActivity : AppCompatActivity() {
             isPaused = true
             binding.tvStatusHud.text = "Calibration • Frame Freezed"
 
+            if (activeMode == "camera") {
+                // Display last captured frame on simCanvas and hide live hardware preview SurfaceView to freeze 100% solid
+                lastCameraFrameBitmap?.let { bmp ->
+                    binding.simCanvas.setImageBitmap(bmp)
+                    binding.simCanvas.visibility = View.VISIBLE
+                    binding.viewFinder.visibility = View.GONE
+                }
+            }
+
             binding.layoutCalibrationBar.visibility = View.VISIBLE
             binding.overlayView.isCalibrationMode = true
             
@@ -245,6 +259,11 @@ class MainActivity : AppCompatActivity() {
             isPaused = false
             binding.tvStatusHud.text = "Tracking • Active"
 
+            if (activeMode == "camera") {
+                binding.simCanvas.visibility = View.GONE
+                binding.viewFinder.visibility = View.VISIBLE
+            }
+
             Toast.makeText(this, String.format("✅ Scale Calibrated! 1.0x: %.3f μm/px | Effective (%.1fx): %.3f μm/px", baseScale, currentZoom, effectiveScale), Toast.LENGTH_LONG).show()
         }
 
@@ -253,6 +272,11 @@ class MainActivity : AppCompatActivity() {
             binding.layoutCalibrationBar.visibility = View.GONE
             isPaused = false
             binding.tvStatusHud.text = "Tracking • Active"
+
+            if (activeMode == "camera") {
+                binding.simCanvas.visibility = View.GONE
+                binding.viewFinder.visibility = View.VISIBLE
+            }
         }
 
         binding.switchShowOverlay.setOnCheckedChangeListener { _, isChecked ->
@@ -674,6 +698,11 @@ class MainActivity : AppCompatActivity() {
             val detections = detector.detectParticles(yBuffer, width, height, rowStride)
             val tracks = tracker.update(detections, nowSec)
 
+            // Convert YUV frame to Bitmap to store snapshot for 100% frozen calibration
+            if (frameCounter % 2 == 0) {
+                lastCameraFrameBitmap = yuvToBitmap(yBuffer, width, height, rowStride)
+            }
+
             runOnUiThread {
                 binding.overlayView.updateData(detections, tracks, width, height)
                 binding.tvFpsHud.text = String.format("%d FPS", liveFps)
@@ -687,6 +716,27 @@ class MainActivity : AppCompatActivity() {
         }
 
         cameraManager.startCamera()
+    }
+
+    private fun yuvToBitmap(yBuffer: java.nio.ByteBuffer, width: Int, height: Int, rowStride: Int): Bitmap? {
+        return try {
+            val yData = ByteArray(yBuffer.remaining())
+            yBuffer.get(yData)
+            yBuffer.rewind()
+
+            val pixels = IntArray(width * height)
+            for (y in 0 until height) {
+                val rowOffset = y * rowStride
+                val outOffset = y * width
+                for (x in 0 until width) {
+                    val gray = yData[rowOffset + x].toInt() and 0xFF
+                    pixels[outOffset + x] = 0xFF000000.toInt() or (gray shl 16) or (gray shl 8) or gray
+                }
+            }
+            Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888)
+        } catch (e: Exception) {
+            null
+        }
     }
 
     private fun loadAndProcessVideoFile(uri: Uri) {
