@@ -4,10 +4,6 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.ImageFormat
-import android.graphics.Rect
-import android.graphics.YuvImage
 import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
@@ -33,7 +29,6 @@ import com.brownian.tracker.tracker.ParticleTracker
 import com.brownian.tracker.tracker.Vector2D
 import com.brownian.tracker.ui.ChartType
 import com.brownian.tracker.video.VideoFileLoader
-import java.io.ByteArrayOutputStream
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
@@ -57,7 +52,6 @@ class MainActivity : AppCompatActivity() {
     private var frameCounter = 0
     private var simScheduler: ScheduledExecutorService? = null
     private var simBitmap: Bitmap? = null
-    private var lastCameraFrameBitmap: Bitmap? = null
     private var isUpdatingFromCode = false
 
     private val videoPickerLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -103,6 +97,10 @@ class MainActivity : AppCompatActivity() {
             Perrin extracted <b>Boltzmann's constant (<i>k</i><sub>B</sub>)</b> and <b>Avogadro's number (<i>N</i><sub>A</sub>)</b>, winning the 1926 Nobel Prize in Physics for proving the physical existence of atoms.
             <br><br>
             This app uses <b>Nanoparticle Tracking Analysis (NTA)</b> algorithms to let you replicate Perrin's Nobel Prize experiment using your smartphone!
+            <br><br>
+            <b>🌡️ Temperature &amp; Viscosity Requirements: Known vs. Unknown <i>T</i></b><br>
+            • <b>When Temperature <i>T</i> is Known (e.g., Room Temp 20°C):</b> You can extract Boltzmann's constant <i>k</i><sub>B</sub> and Avogadro's number <i>N</i><sub>A</sub> (Perrin's experiment), or measure unknown particle diameters (<i>d̄</i>).<br>
+            • <b>When Temperature <i>T</i> is Unknown:</b> You can still measure particle diffusion rates (<i>D</i>) directly, but calculating <i>k</i><sub>B</sub> and <i>N</i><sub>A</sub> requires inputting ambient temperature <i>T</i> because thermal kinetic energy scales linearly with absolute temperature.
         """.trimIndent()
 
         val equipmentHtml = """
@@ -218,17 +216,13 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnCalibrate.setOnClickListener {
-            // Freeze video frame during calibration so finger drag doesn't shift the camera image
+            // Freeze frame stream completely during calibration
             isPaused = true
             binding.tvStatusHud.text = "Calibration • Frame Freezed"
 
-            if (activeMode == "camera") {
-                // Display last captured frame on simCanvas and hide live hardware preview SurfaceView to freeze 100% solid
-                lastCameraFrameBitmap?.let { bmp ->
-                    binding.simCanvas.setImageBitmap(bmp)
-                    binding.simCanvas.visibility = View.VISIBLE
-                    binding.viewFinder.visibility = View.GONE
-                }
+            if (activeMode == "camera" && ::cameraManager.isInitialized) {
+                // Pause repeating hardware preview requests so camera view freezes 100% solid motionless on screen
+                cameraManager.pausePreview()
             }
 
             binding.layoutCalibrationBar.visibility = View.VISIBLE
@@ -246,9 +240,11 @@ class MainActivity : AppCompatActivity() {
             }
 
             val microns = binding.etCalibMicrons.text.toString().toDoubleOrNull() ?: 1000.0
-            val baseScale = (microns / distPx).toFloat()
             val currentZoom = binding.overlayView.currentZoomRatio
-            val effectiveScale = baseScale / currentZoom
+
+            // Calculate Effective Scale at current zoom ratio, and Base Scale at 1.0x uncropped zoom
+            val effectiveScale = (microns / distPx).toFloat()
+            val baseScale = effectiveScale * currentZoom
 
             binding.overlayView.baseScaleMicronsPerPixel = baseScale
             physics.scaleMicronsPerPixel = effectiveScale
@@ -259,12 +255,11 @@ class MainActivity : AppCompatActivity() {
             isPaused = false
             binding.tvStatusHud.text = "Tracking • Active"
 
-            if (activeMode == "camera") {
-                binding.simCanvas.visibility = View.GONE
-                binding.viewFinder.visibility = View.VISIBLE
+            if (activeMode == "camera" && ::cameraManager.isInitialized) {
+                cameraManager.resumePreview()
             }
 
-            Toast.makeText(this, String.format("✅ Scale Calibrated! 1.0x: %.3f μm/px | Effective (%.1fx): %.3f μm/px", baseScale, currentZoom, effectiveScale), Toast.LENGTH_LONG).show()
+            Toast.makeText(this, String.format("✅ Scale Calibrated! 1.0x Base: %.3f μm/px | Effective (%.1fx Zoom): %.3f μm/px", baseScale, currentZoom, effectiveScale), Toast.LENGTH_LONG).show()
         }
 
         binding.btnCancelCalibration.setOnClickListener {
@@ -273,9 +268,8 @@ class MainActivity : AppCompatActivity() {
             isPaused = false
             binding.tvStatusHud.text = "Tracking • Active"
 
-            if (activeMode == "camera") {
-                binding.simCanvas.visibility = View.GONE
-                binding.viewFinder.visibility = View.VISIBLE
+            if (activeMode == "camera" && ::cameraManager.isInitialized) {
+                cameraManager.resumePreview()
             }
         }
 
@@ -612,8 +606,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateCalibrationReadout(distPx: Float) {
         val microns = binding.etCalibMicrons.text.toString().toDoubleOrNull() ?: 1000.0
-        val liveScale = if (distPx > 0f) (microns / distPx) else 0.0
-        binding.tvCalibrationReadout.text = String.format("Line Length: %.1f px | Live Scale (1.0x): %.3f μm/px", distPx, liveScale)
+        val currentZoom = binding.overlayView.currentZoomRatio
+        val effectiveScale = if (distPx > 0f) (microns / distPx) else 0.0
+        val baseScale = effectiveScale * currentZoom
+        binding.tvCalibrationReadout.text = String.format("Line: %.1f px | Scale (%.1fx): %.3f μm/px (1.0x Base: %.3f μm/px)", distPx, currentZoom, effectiveScale, baseScale)
     }
 
     private fun startSimulationLoop() {
@@ -698,11 +694,6 @@ class MainActivity : AppCompatActivity() {
             val detections = detector.detectParticles(yBuffer, width, height, rowStride)
             val tracks = tracker.update(detections, nowSec)
 
-            // Convert YUV frame to Bitmap to store snapshot for 100% frozen calibration
-            if (frameCounter % 2 == 0) {
-                lastCameraFrameBitmap = yuvToBitmap(yBuffer, width, height, rowStride)
-            }
-
             runOnUiThread {
                 binding.overlayView.updateData(detections, tracks, width, height)
                 binding.tvFpsHud.text = String.format("%d FPS", liveFps)
@@ -716,27 +707,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         cameraManager.startCamera()
-    }
-
-    private fun yuvToBitmap(yBuffer: java.nio.ByteBuffer, width: Int, height: Int, rowStride: Int): Bitmap? {
-        return try {
-            val yData = ByteArray(yBuffer.remaining())
-            yBuffer.get(yData)
-            yBuffer.rewind()
-
-            val pixels = IntArray(width * height)
-            for (y in 0 until height) {
-                val rowOffset = y * rowStride
-                val outOffset = y * width
-                for (x in 0 until width) {
-                    val gray = yData[rowOffset + x].toInt() and 0xFF
-                    pixels[outOffset + x] = 0xFF000000.toInt() or (gray shl 16) or (gray shl 8) or gray
-                }
-            }
-            Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888)
-        } catch (e: Exception) {
-            null
-        }
     }
 
     private fun loadAndProcessVideoFile(uri: Uri) {

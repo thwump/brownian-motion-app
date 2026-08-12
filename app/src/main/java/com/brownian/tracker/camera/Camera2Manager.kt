@@ -97,7 +97,6 @@ class Camera2Manager(
             candidates.add(cap)
         }
         
-        // Return main rear camera ID "0" (standard on Android) or highest-resolution main rear lens
         return candidates.firstOrNull { it.cameraId == "0" } ?: candidates.maxByOrNull { it.maxYuvWidth * it.maxYuvHeight }
     }
     
@@ -273,6 +272,25 @@ class Camera2Manager(
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start preview: ${e.message}", e)
         }
+    }
+
+    /**
+     * Stop repeating capture requests to freeze the hardware camera preview frame completely.
+     */
+    fun pausePreview() {
+        try {
+            captureSession?.stopRepeating()
+            Log.d(TAG, "Hardware camera preview paused (frame frozen)")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to pause repeating preview: ${e.message}")
+        }
+    }
+
+    /**
+     * Resume repeating preview requests.
+     */
+    fun resumePreview() {
+        startPreview()
     }
     
     private fun applyFocusSetting(builder: CaptureRequest.Builder) {
