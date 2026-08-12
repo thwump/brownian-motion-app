@@ -138,6 +138,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun switchMode(mode: String) {
         activeMode = mode
+        
+        // Hide viewport container, action buttons, and metrics bar on Intro tab
+        val isIntro = (mode == "intro")
+        val controlsVisibility = if (isIntro) View.GONE else View.VISIBLE
+        
+        binding.viewportContainer.visibility = controlsVisibility
+        binding.toolbarActionGrid.visibility = controlsVisibility
+        binding.realtimeMetricsBar.visibility = controlsVisibility
+
         binding.panelIntro.visibility = if (mode == "intro") View.VISIBLE else View.GONE
         binding.panelSim.visibility = if (mode == "sim") View.VISIBLE else View.GONE
         binding.panelCamera.visibility = if (mode == "camera") View.VISIBLE else View.GONE

@@ -81,12 +81,13 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- Camera Preview & Viewport Canvas Container (Preserving Exact 400dp Height & Aspect Ratio) -->
+            <!-- Camera Preview & Viewport Canvas Container (Hidden on Intro Tab) -->
             <FrameLayout
                 android:id="@+id/viewportContainer"
                 android:layout_width="match_parent"
                 android:layout_height="400dp"
-                android:background="#000000">
+                android:background="#000000"
+                android:visibility="gone">
 
                 <com.brownian.tracker.ui.AspectRatioSurfaceView
                     android:id="@+id/viewFinder"
@@ -120,13 +121,15 @@
                     android:paddingVertical="4dp" />
             </FrameLayout>
 
-            <!-- Toolbar Action Grid -->
+            <!-- Toolbar Action Grid (Hidden on Intro Tab) -->
             <LinearLayout
+                android:id="@+id/toolbarActionGrid"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:padding="8dp"
-                android:background="#0e1422">
+                android:background="#0e1422"
+                android:visibility="gone">
 
                 <Button
                     android:id="@+id/btnStart"
@@ -168,13 +171,15 @@
                     android:layout_marginStart="4dp" />
             </LinearLayout>
 
-            <!-- Real-time Metrics Bar -->
+            <!-- Real-time Metrics Bar (Hidden on Intro Tab) -->
             <LinearLayout
+                android:id="@+id/realtimeMetricsBar"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:padding="10dp"
-                android:background="@color/card_bg">
+                android:background="@color/card_bg"
+                android:visibility="gone">
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -355,7 +360,7 @@
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Exact lens magnification is not critical because scale is calibrated directly in micrometers per pixel (μm/px):\n1. Tap the 'Calibrate' button above.\n2. Drag a line across a known distance (e.g., a 1 mm mark on a ruler or stage micrometer).\n3. Enter the physical distance in micrometers (1000 μm for 1 mm) to establish your exact optical scale."
+                            android:text="Exact lens magnification is not critical because scale is calibrated directly in micrometers per pixel (μm/px):\n1. Tap the 'Calibrate' button on the Sim, Camera, or Video tab.\n2. Drag a line across a known distance (e.g., a 1 mm mark on a ruler or stage micrometer).\n3. Enter the physical distance in micrometers (1000 μm for 1 mm) to establish your exact optical scale."
                             android:textColor="@color/text_muted"
                             android:textSize="12sp"
                             android:layout_marginTop="6dp" />
