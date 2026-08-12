@@ -7,7 +7,9 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
 import android.text.Editable
+import android.text.Html
 import android.text.TextWatcher
+import android.text.method.LinkMovementMethod
 import android.view.View
 import android.widget.SeekBar
 import android.widget.Toast
@@ -80,9 +82,43 @@ class MainActivity : AppCompatActivity() {
         setupNavigationTabs()
         setupUIControls()
         setupCalibrationGesture()
+        setupIntroTabContent()
 
-        // Start on Intro tab
+        // App starts directly on the Intro tab
         switchMode("intro")
+    }
+
+    private fun setupIntroTabContent() {
+        val physicsHtml = """
+            In 1908, French physicist <a href="https://en.wikipedia.org/wiki/Jean_Baptiste_Perrin">Jean Perrin</a> measured the random thermal motion of microscopic resin spheres suspended in water. Using <a href="https://en.wikipedia.org/wiki/Brownian_motion">Albert Einstein's 1905 diffusion equation</a>:
+            <br><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<b><i>D</i> = (<i>k</i><sub>B</sub> · <i>T</i>) / (6 · π · η · <i>a</i>)</b>
+            <br><br>
+            Perrin extracted <a href="https://en.wikipedia.org/wiki/Boltzmann_constant">Boltzmann's constant (<i>k</i><sub>B</sub>)</a> and <a href="https://en.wikipedia.org/wiki/Avogadro_constant">Avogadro's number (<i>N</i><sub>A</sub>)</a>, winning the 1926 Nobel Prize in Physics for proving the physical existence of atoms.
+            <br><br>
+            This app uses <a href="https://en.wikipedia.org/wiki/Nanoparticle_tracking_analysis">Nanoparticle Tracking Analysis (NTA)</a> algorithms to let you replicate Perrin's Nobel Prize experiment using your smartphone!
+        """.trimIndent()
+
+        val equipmentHtml = """
+            • <b>Microscope Lens:</b> Any clip-on smartphone microscope lens (e.g., 50× to 200× magnification).<br>
+            • <b>Sample Liquids:</b> Diluted milk (fat globules 0.8–3.5 μm), polystyrene latex micro-beads, or starch particles in water.<br>
+            • <b>Slide Preparation:</b> Place a single drop under a glass cover-slip. Ensure the slide is flat to minimize fluid drift.
+        """.trimIndent()
+
+        val quickstartHtml = """
+            1. Tap the <b>🔬 Sim</b> tab to explore the real-time physics simulator.<br>
+            2. Attach your clip-on lens &amp; tap the <b>📷 Camera</b> tab.<br>
+            3. Turn on Torch, adjust Manual Focus &amp; Sensitivity sliders.<br>
+            4. Tap <b>Start</b> to track trajectories and watch <i>k</i><sub>B</sub> and <i>N</i><sub>A</sub> converge!
+        """.trimIndent()
+
+        binding.tvIntroPhysicsText.text = Html.fromHtml(physicsHtml, Html.FROM_HTML_MODE_LEGACY)
+        binding.tvIntroPhysicsText.movementMethod = LinkMovementMethod.getInstance()
+
+        binding.tvIntroEquipmentText.text = Html.fromHtml(equipmentHtml, Html.FROM_HTML_MODE_LEGACY)
+        binding.tvIntroEquipmentText.movementMethod = LinkMovementMethod.getInstance()
+
+        binding.tvIntroQuickstartText.text = Html.fromHtml(quickstartHtml, Html.FROM_HTML_MODE_LEGACY)
     }
 
     private fun setupNavigationTabs() {
@@ -108,7 +144,7 @@ class MainActivity : AppCompatActivity() {
         binding.panelVideo.visibility = if (mode == "video") View.VISIBLE else View.GONE
 
         binding.viewFinder.visibility = if (mode == "camera") View.VISIBLE else View.GONE
-        binding.simCanvas.visibility = if (mode == "sim" || mode == "intro") View.VISIBLE else View.GONE
+        binding.simCanvas.visibility = if (mode == "sim") View.VISIBLE else View.GONE
 
         if (mode == "camera") {
             binding.tvStatusHud.text = "Tracking • Live Camera2 Sensor Stream"
@@ -118,11 +154,16 @@ class MainActivity : AppCompatActivity() {
             } else {
                 ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
             }
-        } else if (mode == "sim" || mode == "intro") {
+        } else if (mode == "sim") {
             binding.tvStatusHud.text = "Tracking • Physics Simulator Active"
             detector.invert = true
             if (::cameraManager.isInitialized) cameraManager.shutdown()
             startSimulationLoop()
+        } else {
+            // Intro or Video tab: stop simulator & camera background loops completely
+            binding.tvStatusHud.text = if (mode == "intro") "Ready • Overview & Documentation" else "Ready • Video Analysis Mode"
+            stopSimulationLoop()
+            if (::cameraManager.isInitialized) cameraManager.shutdown()
         }
     }
 
@@ -171,13 +212,6 @@ class MainActivity : AppCompatActivity() {
             if (::cameraManager.isInitialized) {
                 val torchOn = cameraManager.toggleTorch()
                 Toast.makeText(this, if (torchOn) "Flashlight ON" else "Flashlight OFF", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        binding.btnSwitchRearCamera.setOnClickListener {
-            if (::cameraManager.isInitialized) {
-                val cameraInfoStr = cameraManager.cycleRearCamera()
-                Toast.makeText(this, "Switched Camera: $cameraInfoStr", Toast.LENGTH_LONG).show()
             }
         }
 
@@ -506,7 +540,7 @@ class MainActivity : AppCompatActivity() {
         simScheduler = Executors.newSingleThreadScheduledExecutor()
 
         simScheduler?.scheduleAtFixedRate({
-            if (isPaused || (activeMode != "sim" && activeMode != "intro")) return@scheduleAtFixedRate
+            if (isPaused || activeMode != "sim") return@scheduleAtFixedRate
 
             val nowClock = SystemClock.elapsedRealtime()
             val frameDeltaMs = Math.max(1L, nowClock - lastFrameTimestamp)
@@ -653,7 +687,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         when (activeMode) {
-            "sim", "intro" -> {
+            "sim" -> {
                 binding.msdChartView.updateMsdData(msdResult)
                 binding.psdChartView.updateHistogramData(
                     ChartType.PSD_HISTOGRAM,
@@ -708,8 +742,8 @@ class MainActivity : AppCompatActivity() {
         val NA_ref_str = String.format("%.3e", constants.referenceAvogadro)
         val NA_error = String.format("%.1f", kotlin.math.abs(constants.avogadroErrorPercent))
 
-        tvBoltzmann.text = "k_B = $kB_str J/K (±$kB_error%) | True: $kB_ref_str"
-        tvAvogadro.text = "N_A = $NA_str /mol (±$NA_error%) | True: $NA_ref_str"
+        tvBoltzmann.text = "k_B = $kB_str J/K (±$kB_error%) | True: $kB_ref_str J/K"
+        tvAvogadro.text = "N_A = $NA_str /mol (±$NA_error%) | True: $NA_ref_str /mol"
     }
 
     private fun updateUI(D: Double, tempC: Double, meanDiam: Double, totalSteps: Long = 0, stdErr: Double = 0.0) {

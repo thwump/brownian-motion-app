@@ -27,9 +27,7 @@ private const val MAX_IMAGES = 3
 
 /**
  * Camera2-based camera manager with full manual control including focus distance.
- * Provides YUV_420_888 frames at native sensor resolution for Brownian motion tracking.
- * 
- * Multi-camera capable: Automatically discovers all rear lenses (1, 2, 3+) and allows cycling.
+ * Automatically selects the primary main wide rear camera across all Android devices (Pixel, Samsung, etc.).
  */
 class Camera2Manager(
     private val context: Context,
@@ -63,13 +61,10 @@ class Camera2Manager(
     private var currentFocusDistance: Float? = null // null = autofocus, 0f = infinity
     private var minFocusDistance: Float = 0f
     
-    private var selectedCameraIndex: Int = 0
-    private var availableRearCameras: List<CameraCapabilities> = emptyList()
-    
     /**
-     * Discover all valid rear-facing hardware cameras.
+     * Finds the primary main rear camera across all Android devices.
      */
-    fun getAvailableRearCameras(): List<CameraCapabilities> {
+    private fun findBestCamera(): CameraCapabilities? {
         val candidates = mutableListOf<CameraCapabilities>()
         
         for (id in cameraManager.cameraIdList) {
@@ -102,32 +97,8 @@ class Camera2Manager(
             candidates.add(cap)
         }
         
-        return candidates
-    }
-    
-    private fun findBestCamera(): CameraCapabilities? {
-        availableRearCameras = getAvailableRearCameras()
-        if (availableRearCameras.isEmpty()) return null
-        
-        if (selectedCameraIndex !in availableRearCameras.indices) {
-            selectedCameraIndex = 0
-        }
-        
-        return availableRearCameras[selectedCameraIndex]
-    }
-    
-    @RequiresPermission(Manifest.permission.CAMERA)
-    fun cycleRearCamera(): String {
-        val rearCameras = getAvailableRearCameras()
-        if (rearCameras.size <= 1) {
-            return "Main Lens (Single Rear Camera)"
-        }
-        
-        selectedCameraIndex = (selectedCameraIndex + 1) % rearCameras.size
-        shutdown()
-        startCamera()
-        
-        return "Rear Lens ${selectedCameraIndex + 1} of ${rearCameras.size} (ID: ${rearCameras[selectedCameraIndex].cameraId})"
+        // Return main rear camera ID "0" (standard on Android) or highest-resolution main rear lens
+        return candidates.firstOrNull { it.cameraId == "0" } ?: candidates.maxByOrNull { it.maxYuvWidth * it.maxYuvHeight }
     }
     
     private fun startBackgroundThread() {
@@ -186,7 +157,7 @@ class Camera2Manager(
         minFocusDistance = capabilities.minFocusDistance
         
         val sensorOrientation = capabilities.characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 0
-        Log.d(TAG, "Selected camera ${capabilities.cameraId}: ${capabilities.maxYuvWidth}x${capabilities.maxYuvHeight}, sensor orientation: $sensorOrientation")
+        Log.d(TAG, "Selected primary main camera ${capabilities.cameraId}: ${capabilities.maxYuvWidth}x${capabilities.maxYuvHeight}, sensor orientation: $sensorOrientation")
         
         surfaceView.post {
             val needsSwap = sensorOrientation == 90 || sensorOrientation == 270
