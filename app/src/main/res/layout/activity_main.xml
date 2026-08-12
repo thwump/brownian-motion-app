@@ -37,7 +37,7 @@
             android:paddingVertical="4dp" />
     </LinearLayout>
 
-    <!-- Navigation Tabs (Fixed at Top) -->
+    <!-- Navigation Tabs (Fixed at Top): Intro, Sim, Camera, Video -->
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/tabLayout"
         android:layout_width="match_parent"
@@ -47,6 +47,11 @@
         app:tabSelectedTextColor="@color/accent_cyan"
         app:tabIndicatorColor="@color/accent_cyan"
         app:tabMode="fixed">
+
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ℹ️ Intro" />
 
         <com.google.android.material.tabs.TabItem
             android:layout_width="wrap_content"
@@ -241,10 +246,132 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- Mode-Specific Panels (Sim, Camera, Video) -->
+            <!-- Mode-Specific Panels (Intro, Sim, Camera, Video) -->
             <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
+
+                <!-- TAB 0: INTRODUCTION & EXPERIMENTAL GUIDE -->
+                <LinearLayout
+                    android:id="@+id/panelIntro"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="14dp"
+                    android:visibility="visible">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🔬 Welcome to Brownian NTA Lab"
+                        android:textColor="@color/accent_cyan"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Turn your smartphone into a research-grade Nanoparticle Tracking Analysis (NTA) laboratory using a clip-on microscope lens."
+                        android:textColor="@color/text_main"
+                        android:textSize="13sp"
+                        android:layout_marginTop="4dp"
+                        android:layout_marginBottom="12dp" />
+
+                    <!-- Physics Concept Card -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:background="#1a1e2e"
+                        android:padding="12dp"
+                        android:layout_marginBottom="12dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="🏆 The Physics: Jean Perrin's 1926 Nobel Prize"
+                            android:textColor="@color/accent_green"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="In 1908, Jean Perrin measured the random Brownian motion of microscopic resin spheres suspended in water. Using Albert Einstein's 1905 diffusion equation (D = k_B T / 6πηa), Perrin extracted Boltzmann's constant k_B and Avogadro's number N_A, providing the definitive experimental proof that atoms exist.\n\nThis app lets you replicate Perrin's Nobel Prize experiment using your smartphone!"
+                            android:textColor="@color/text_muted"
+                            android:textSize="12sp"
+                            android:layout_marginTop="6dp" />
+                    </LinearLayout>
+
+                    <!-- Setup & Equipment Card -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:background="#161e2e"
+                        android:padding="12dp"
+                        android:layout_marginBottom="12dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="📱 Recommended Equipment &amp; Samples"
+                            android:textColor="@color/accent_cyan"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="• Lens: Any clip-on smartphone microscope lens (e.g. 50× to 200× magnification).\n• Samples: Diluted milk (fat globules 0.8–3.5 μm), polystyrene latex micro-beads, or starch particles in water.\n• Slide Setup: Place a drop under a glass cover-slip. Ensure the slide is flat to minimize fluid drift."
+                            android:textColor="@color/text_main"
+                            android:textSize="12sp"
+                            android:layout_marginTop="6dp" />
+                    </LinearLayout>
+
+                    <!-- Calibration Card -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:background="#1a1e2e"
+                        android:padding="12dp"
+                        android:layout_marginBottom="12dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="📏 Optical Calibration (Scale in μm/px)"
+                            android:textColor="@color/accent_magenta"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Exact lens magnification isn't critical because you calibrate scale directly:\n1. Tap 'Calibrate' button.\n2. Drag a line across a known distance (e.g. 1mm ruler mark or stage micrometer).\n3. Enter the physical length in micrometers (μm) to establish your exact scale."
+                            android:textColor="@color/text_muted"
+                            android:textSize="12sp"
+                            android:layout_marginTop="6dp" />
+                    </LinearLayout>
+
+                    <!-- Quickstart Steps -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🚀 Quickstart Steps:"
+                        android:textColor="@color/text_main"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:layout_marginBottom="6dp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="1. Select '🔬 Sim' tab to test the physics simulator.\n2. Attach your clip-on lens &amp; select '📷 Camera' tab.\n3. Turn on Torch, adjust Manual Focus &amp; Sensitivity sliders.\n4. Tap 'Start' to track particle trajectories and watch k_B and N_A converge!"
+                        android:textColor="@color/text_muted"
+                        android:textSize="12sp" />
+                </LinearLayout>
 
                 <!-- TAB 1: SIMULATOR CONTROLS -->
                 <LinearLayout
@@ -252,7 +379,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="12dp">
+                    android:padding="12dp"
+                    android:visibility="gone">
 
                     <com.google.android.material.switchmaterial.SwitchMaterial
                         android:id="@+id/switchMilkMode"
@@ -527,6 +655,15 @@
                         android:textColor="@color/text_main"
                         android:textStyle="bold" />
 
+                    <Button
+                        android:id="@+id/btnSwitchRearCamera"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Switch Rear Camera Lens (Lens 1 / Lens 2)"
+                        android:textColor="@color/accent_cyan"
+                        android:layout_marginTop="6dp" />
+
                     <com.google.android.material.switchmaterial.SwitchMaterial
                         android:id="@+id/switchShowOverlay"
                         android:layout_width="match_parent"
@@ -558,13 +695,13 @@
                         android:layout_height="wrap_content"
                         android:text="Toggle Phone Flashlight / Torch"
                         android:textColor="@color/accent_cyan"
-                        android:layout_marginTop="12dp" />
+                        android:layout_marginTop="8dp" />
 
-                    <!-- Manual Focus Control for Microscopy -->
+                    <!-- Manual Focus Control for Clip-on Microscope Lens -->
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="🔍 Manual Focus (for 200× lens depth-of-field)"
+                        android:text="🔍 Manual Focus (for clip-on microscope lens)"
                         android:textColor="@color/text_main"
                         android:textSize="13sp"
                         android:textStyle="bold"

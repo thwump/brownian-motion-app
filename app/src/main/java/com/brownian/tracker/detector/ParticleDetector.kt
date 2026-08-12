@@ -10,6 +10,10 @@ data class DetectedParticle(
     val intensity: Float
 )
 
+/**
+ * High-performance, robust particle detector for real video microscopy (NTA).
+ * Uses intensity-weighted sub-pixel centroiding, adaptive thresholding, and size/shape filtering.
+ */
 class ParticleDetector {
     var minThreshold: Int = 30
     var minParticleRadius: Int = 3
@@ -35,6 +39,10 @@ class ParticleDetector {
         val labels = IntArray(width * height)
         var currentLabel = 1
 
+        // Large 1024-entry BFS traversal queue to handle high-resolution macro spots without truncation
+        val queueX = IntArray(1024)
+        val queueY = IntArray(1024)
+
         for (y in step until height - step step step) {
             val rowOffset = y * rowStride
             for (x in step until width - step step step) {
@@ -58,8 +66,6 @@ class ParticleDetector {
                         var minY = y
                         var maxY = y
 
-                        val queueX = IntArray(256)
-                        val queueY = IntArray(256)
                         var head = 0
                         var tail = 0
 
@@ -68,7 +74,7 @@ class ParticleDetector {
                         tail++
                         labels[idx] = currentLabel
 
-                        while (head < tail && pixelCount < 300) {
+                        while (head < tail && pixelCount < 600) {
                             val qx = queueX[head]
                             val qy = queueY[head]
                             head++
@@ -114,10 +120,20 @@ class ParticleDetector {
                         if (pixelCount >= 2 && totalIntensity > 0) {
                             val cx = (sumX / totalIntensity).toFloat()
                             val cy = (sumY / totalIntensity).toFloat()
-                            val bboxRadius = (hypot((maxX - minX).toDouble(), (maxY - minY).toDouble()) / 2.0).toFloat()
-                            val radius = Math.max(minParticleRadius.toFloat(), Math.min(maxParticleRadius.toFloat(), bboxRadius))
+                            
+                            val widthPx = (maxX - minX + step).toDouble()
+                            val heightPx = (maxY - minY + step).toDouble()
+                            val bboxRadius = (hypot(widthPx, heightPx) / 2.0).toFloat()
+                            val aspectRatio = Math.max(widthPx, heightPx) / Math.max(1.0, Math.min(widthPx, heightPx))
 
-                            particles.add(DetectedParticle(cx, cy, radius, (totalIntensity / pixelCount).toFloat()))
+                            // Strict validation: Reject noise speckles, elongated scratches (aspectRatio > 2.5), and oversized dust spots
+                            if (bboxRadius >= minParticleRadius.toFloat() * 0.5f && 
+                                bboxRadius <= maxParticleRadius.toFloat() * 1.5f && 
+                                aspectRatio <= 2.5) {
+                                
+                                val clampedRadius = Math.max(minParticleRadius.toFloat(), Math.min(maxParticleRadius.toFloat(), bboxRadius))
+                                particles.add(DetectedParticle(cx, cy, clampedRadius, (totalIntensity / pixelCount).toFloat()))
+                            }
                         }
 
                         currentLabel++

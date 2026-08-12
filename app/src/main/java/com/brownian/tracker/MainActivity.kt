@@ -43,7 +43,7 @@ class MainActivity : AppCompatActivity() {
     private val tracker = ParticleTracker()
     private val physics = PhysicsEngine()
 
-    private var activeMode = "sim" // "sim", "camera", "video"
+    private var activeMode = "intro" // "intro", "sim", "camera", "video"
     private var isPaused = false
     private var lastSimTimeNanos = SystemClock.elapsedRealtimeNanos()
     private var lastFrameTimestamp = SystemClock.elapsedRealtime()
@@ -62,7 +62,6 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         // 960x1280 (3:4 portrait) to match camera sensor aspect ratio (3072x4080)
-        // This prevents particle distortion in simulation mode
         simulator = PhysicsSimulator(960, 1280)
         videoLoader = VideoFileLoader(this)
         dataExporter = DataExporter(this)
@@ -82,16 +81,18 @@ class MainActivity : AppCompatActivity() {
         setupUIControls()
         setupCalibrationGesture()
 
-        startSimulationLoop()
+        // Start on Intro tab
+        switchMode("intro")
     }
 
     private fun setupNavigationTabs() {
         binding.tabLayout.addOnTabSelectedListener(object : com.google.android.material.tabs.TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: com.google.android.material.tabs.TabLayout.Tab) {
                 when (tab.position) {
-                    0 -> switchMode("sim")
-                    1 -> switchMode("camera")
-                    2 -> switchMode("video")
+                    0 -> switchMode("intro")
+                    1 -> switchMode("sim")
+                    2 -> switchMode("camera")
+                    3 -> switchMode("video")
                 }
             }
             override fun onTabUnselected(tab: com.google.android.material.tabs.TabLayout.Tab) {}
@@ -101,12 +102,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun switchMode(mode: String) {
         activeMode = mode
+        binding.panelIntro.visibility = if (mode == "intro") View.VISIBLE else View.GONE
         binding.panelSim.visibility = if (mode == "sim") View.VISIBLE else View.GONE
         binding.panelCamera.visibility = if (mode == "camera") View.VISIBLE else View.GONE
         binding.panelVideo.visibility = if (mode == "video") View.VISIBLE else View.GONE
 
         binding.viewFinder.visibility = if (mode == "camera") View.VISIBLE else View.GONE
-        binding.simCanvas.visibility = if (mode == "sim") View.VISIBLE else View.GONE
+        binding.simCanvas.visibility = if (mode == "sim" || mode == "intro") View.VISIBLE else View.GONE
 
         if (mode == "camera") {
             binding.tvStatusHud.text = "Tracking • Live Camera2 Sensor Stream"
@@ -116,14 +118,12 @@ class MainActivity : AppCompatActivity() {
             } else {
                 ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
             }
-        } else if (mode == "sim") {
+        } else if (mode == "sim" || mode == "intro") {
             binding.tvStatusHud.text = "Tracking • Physics Simulator Active"
             detector.invert = true
             if (::cameraManager.isInitialized) cameraManager.shutdown()
             startSimulationLoop()
         }
-        
-        // Analytics will update automatically once tracking starts
     }
 
     private fun setupUIControls() {
@@ -159,8 +159,6 @@ class MainActivity : AppCompatActivity() {
             physics.resetAccumulators()
             tracker.reset()
             
-            // Disable particle size controls when polydisperse mode is active
-            // (uses fixed milk fat globule distribution: 0.8-3.5 μm, median 1.5 μm)
             binding.seekBarSize.isEnabled = !isChecked
             binding.etSizeInput.isEnabled = !isChecked
         }
@@ -171,105 +169,63 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnToggleTorch.setOnClickListener {
             if (::cameraManager.isInitialized) {
-                cameraManager.toggleTorch()
+                val torchOn = cameraManager.toggleTorch()
+                Toast.makeText(this, if (torchOn) "Flashlight ON" else "Flashlight OFF", Toast.LENGTH_SHORT).show()
             }
         }
 
-        // -------------------------------------------------------------
-        // MANUAL FOCUS CONTROLS FOR MICROSCOPY
-        // Camera2 API provides true focus distance control in diopters
-        // 0.0 = infinity, maxFocusDistance = closest possible focus
-        // For microscopy: Use values close to maxFocusDistance
-        // -------------------------------------------------------------
+        binding.btnSwitchRearCamera.setOnClickListener {
+            if (::cameraManager.isInitialized) {
+                val cameraInfoStr = cameraManager.cycleRearCamera()
+                Toast.makeText(this, "Switched Camera: $cameraInfoStr", Toast.LENGTH_LONG).show()
+            }
+        }
+
+        // Manual focus controls
         binding.seekBarFocus.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser && ::cameraManager.isInitialized) {
-                    // Map slider 0-100 to device's focus distance range
-                    // For microscopy, we want close focus (high diopter values)
                     val maxFocus = cameraManager.getMaxFocusDistance()
                     val focusDistance = (progress / 100.0f) * maxFocus
-                    
                     cameraManager.setManualFocus(focusDistance)
-                    
-                    if (maxFocus > 0f) {
-                        binding.tvFocusLabel.text = String.format("Focus: %.2f D (%.0f%% close)", 
-                            focusDistance, progress.toFloat())
-                    } else {
-                        binding.tvFocusLabel.text = "Focus: Manual not supported"
-                    }
+                    binding.tvFocusLabel.text = String.format("Focus: %.2f D (%.0f%% close)", focusDistance, progress.toFloat())
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                // Keep the focus at the selected distance (no auto-revert)
-            }
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
 
         binding.btnLockFocus.setOnClickListener {
             if (::cameraManager.isInitialized) {
-                // Lock focus at current slider position (for microscopy, typically high value = close focus)
                 val progress = binding.seekBarFocus.progress
                 val maxFocus = cameraManager.getMaxFocusDistance()
                 val focusDistance = (progress / 100.0f) * maxFocus
-                
-                val success = cameraManager.setManualFocus(focusDistance)
-                
-                if (success) {
-                    Toast.makeText(this, String.format("Focus locked at %.2f diopters - stable for measurement!", focusDistance), 
-                        Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this, "Manual focus not supported on this device", Toast.LENGTH_SHORT).show()
-                }
+                cameraManager.setManualFocus(focusDistance)
+                Toast.makeText(this, String.format("Focus Locked at %.2f D", focusDistance), Toast.LENGTH_SHORT).show()
             }
         }
 
         binding.btnAutoFocus.setOnClickListener {
             if (::cameraManager.isInitialized) {
-                // Return to continuous autofocus
-                val success = cameraManager.unlockAutoFocus()
-                binding.seekBarFocus.progress = 50
-                binding.tvFocusLabel.text = "Focus: Auto (continuous)"
-                Toast.makeText(this, if (success) "Autofocus re-enabled" else "AF unlock failed", Toast.LENGTH_SHORT).show()
+                cameraManager.unlockAutoFocus()
+                binding.tvFocusLabel.text = "Focus: Continuous Autofocus"
+                Toast.makeText(this, "Continuous Autofocus Enabled", Toast.LENGTH_SHORT).show()
             }
         }
 
-        // -------------------------------------------------------------
-        // DATA EXPORT CONTROLS
-        // -------------------------------------------------------------
-        binding.btnExportJSON.setOnClickListener {
-            exportDataJSON()
-        }
+        // Export Buttons
+        binding.btnExportJSON.setOnClickListener { exportDataJSON() }
+        binding.btnExportCSV.setOnClickListener { exportDataCSV() }
+        binding.btnExportJSONCamera.setOnClickListener { exportDataJSON() }
+        binding.btnExportCSVCamera.setOnClickListener { exportDataCSV() }
+        binding.btnExportJSONVideo.setOnClickListener { exportDataJSON() }
+        binding.btnExportCSVVideo.setOnClickListener { exportDataCSV() }
 
-        binding.btnExportCSV.setOnClickListener {
-            exportDataCSV()
-        }
-
-        // Export buttons for Camera mode
-        binding.btnExportJSONCamera.setOnClickListener {
-            exportDataJSON()
-        }
-
-        binding.btnExportCSVCamera.setOnClickListener {
-            exportDataCSV()
-        }
-
-        // Export buttons for Video mode
-        binding.btnExportJSONVideo.setOnClickListener {
-            exportDataJSON()
-        }
-
-        binding.btnExportCSVVideo.setOnClickListener {
-            exportDataCSV()
-        }
-
-        // -------------------------------------------------------------
-        // PARTICLE DETECTION TUNING CONTROLS
-        // -------------------------------------------------------------
+        // Particle Detection Sensitivity Tuning Controls
         binding.switchInvertPolarity.setOnCheckedChangeListener { _, isChecked ->
             detector.invert = isChecked
         }
 
-        // 1. Detection Contrast Sensitivity Threshold (0 to 200)
         binding.seekBarDetectThreshold.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser && !isUpdatingFromCode) {
@@ -299,7 +255,6 @@ class MainActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         })
 
-        // 2. Min Particle Radius (1 to 20 px)
         binding.seekBarMinRadius.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser && !isUpdatingFromCode) {
@@ -330,7 +285,6 @@ class MainActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         })
 
-        // 3. Max Particle Radius (5 to 100 px)
         binding.seekBarMaxRadius.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser && !isUpdatingFromCode) {
@@ -361,11 +315,7 @@ class MainActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         })
 
-        // -------------------------------------------------------------
-        // BI-DIRECTIONAL SYNCHRONIZED CONTROLS: TEXT BOX + SEEKBAR
-        // -------------------------------------------------------------
-
-        // 1. TEMPERATURE (0°C to 60°C)
+        // Temperature, Viscosity, Drift, Particle Size Controls
         binding.seekBarTemp.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser && !isUpdatingFromCode) {
@@ -398,7 +348,6 @@ class MainActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         })
 
-        // 2. VISCOSITY (0.1 mPa·s to 10.0 mPa·s)
         binding.seekBarVisc.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser && !isUpdatingFromCode) {
@@ -431,7 +380,6 @@ class MainActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         })
 
-        // 3. FLUID DRIFT (0.0 μm/s to 3.0 μm/s)
         binding.seekBarDrift.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser && !isUpdatingFromCode) {
@@ -462,7 +410,6 @@ class MainActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         })
 
-        // 4. MEAN PARTICLE SIZE CONTROL (Text + Slider)
         binding.seekBarSize.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser && !isUpdatingFromCode) {
@@ -499,10 +446,9 @@ class MainActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         })
 
-        // CAMERA CROP ZOOM SLIDER
         binding.seekBarZoom.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                val zoom = 1.0f + (progress / 100.0f) * 9.0f // 1.0x to 10.0x
+                val zoom = 1.0f + (progress / 100.0f) * 9.0f
                 val baseScale = binding.overlayView.baseScaleMicronsPerPixel
                 val effectiveScale = baseScale / zoom
                 val fovMm = (effectiveScale * 1280.0) / 1000.0
@@ -510,7 +456,6 @@ class MainActivity : AppCompatActivity() {
                 binding.tvZoomSliderLabel.text = String.format("Digital Sensor Crop Zoom: %.1fx (FOV: ~%.2f mm)", zoom, fovMm)
                 binding.overlayView.currentZoomRatio = zoom
 
-                // Synchronize physics engine and simulator scale to current zoom level
                 physics.scaleMicronsPerPixel = effectiveScale
                 simulator.scaleMicronsPerPixel = effectiveScale
 
@@ -534,7 +479,7 @@ class MainActivity : AppCompatActivity() {
             builder.setMessage(String.format("Measured line: %.1f pixels at 1.0x zoom.\nEnter physical distance in micrometers (e.g. 1000 μm for 1mm ruler mark):", distPx))
 
             val input = android.widget.EditText(this)
-            input.setText("1000.0") // Default to 1mm (1000 μm) ruler mark
+            input.setText("1000.0")
             builder.setView(input)
 
             builder.setPositiveButton("Set Base Scale") { _, _ ->
@@ -561,7 +506,7 @@ class MainActivity : AppCompatActivity() {
         simScheduler = Executors.newSingleThreadScheduledExecutor()
 
         simScheduler?.scheduleAtFixedRate({
-            if (isPaused || activeMode != "sim") return@scheduleAtFixedRate
+            if (isPaused || (activeMode != "sim" && activeMode != "intro")) return@scheduleAtFixedRate
 
             val nowClock = SystemClock.elapsedRealtime()
             val frameDeltaMs = Math.max(1L, nowClock - lastFrameTimestamp)
@@ -577,7 +522,6 @@ class MainActivity : AppCompatActivity() {
 
             simulator.update(dtSec)
 
-            // Direct Floating-Point Particle Coordinates in Simulation Mode (Eliminates Bitmap Rasterization Noise)
             val detections = simulator.particles.map { p ->
                 DetectedParticle(
                     x = p.x.toFloat(),
@@ -669,11 +613,9 @@ class MainActivity : AppCompatActivity() {
     private fun processAnalytics(tracks: List<com.brownian.tracker.tracker.ParticleTrack>) {
         val isPoly = binding.switchMilkMode.isChecked
         
-        // Pass EXACT Harmonic Mean Radius of current particles when in polydisperse milk mode
         val refRadius = if (isPoly) simulator.getHarmonicMeanRadiusMicrons() else simulator.particleRadiusMicrons
         val displayMeanDiam = if (isPoly) simulator.getArithmeticMeanDiameterMicrons() else (simulator.particleRadiusMicrons * 2.0)
 
-        // Synchronize scaleMicronsPerPixel and viscosityMpaSec between simulator and physics engine
         physics.scaleMicronsPerPixel = simulator.scaleMicronsPerPixel
         val currentViscosity = simulator.viscosityMpaSec
 
@@ -690,8 +632,6 @@ class MainActivity : AppCompatActivity() {
 
         runOnUiThread {
             updateUI(cumul.D_converged, cumul.T_converged_C, displayMeanDiam, cumul.totalSteps, cumul.stdErrPercent)
-            // Update analytics dashboard with measured D, correct radius, and KNOWN temperature
-            // (In real experiment, you'd use thermometer reading, not calculated temperature)
             updateAnalyticsDashboard(cumul.D_converged, refRadius, simulator.tempCelsius)
         }
     }
@@ -699,24 +639,21 @@ class MainActivity : AppCompatActivity() {
     private fun updateAnalyticsDashboard(
         measuredDiffusion: Double = 0.214, 
         particleRadius: Double = 1.0,
-        knownTemperature: Double = 20.0  // From thermometer, not from Brownian motion!
+        knownTemperature: Double = 20.0
     ) {
         val allTracks = tracker.getAllTracks()
         val msdResult = physics.calculateMSD(allTracks, 20)
         val polyData = physics.calculatePolydisperseSizing(allTracks, simulator.tempCelsius, simulator.viscosityMpaSec)
 
-        // Calculate fundamental constants (Perrin's Nobel Prize experiment!)
-        // Use KNOWN temperature (from thermometer), measured D, and known radius
         val constants = physics.calculateFundamentalConstants(
             measuredDiffusion = measuredDiffusion,
-            knownTempCelsius = knownTemperature,  // From thermometer, not calculated!
+            knownTempCelsius = knownTemperature,
             knownViscosity = simulator.viscosityMpaSec,
-            knownRadiusMicrons = particleRadius  // Use same radius as temperature calculation!
+            knownRadiusMicrons = particleRadius
         )
 
-        // Update the appropriate chart views based on active mode
         when (activeMode) {
-            "sim" -> {
+            "sim", "intro" -> {
                 binding.msdChartView.updateMsdData(msdResult)
                 binding.psdChartView.updateHistogramData(
                     ChartType.PSD_HISTOGRAM,
@@ -763,7 +700,6 @@ class MainActivity : AppCompatActivity() {
         tvAvogadro: android.widget.TextView,
         constants: com.brownian.tracker.physics.FundamentalConstantsResult
     ) {
-        // Format with scientific notation
         val kB_str = String.format("%.3e", constants.measuredBoltzmann)
         val kB_ref_str = String.format("%.3e", constants.referenceBoltzmann)
         val kB_error = String.format("%.1f", kotlin.math.abs(constants.boltzmannErrorPercent))
@@ -834,7 +770,6 @@ class MainActivity : AppCompatActivity() {
 
             Toast.makeText(this, "✅ Exported: ${file.name}", Toast.LENGTH_SHORT).show()
 
-            // Offer to share
             AlertDialog.Builder(this)
                 .setTitle("Export Complete")
                 .setMessage("Data exported to:\n${file.absolutePath}\n\nWould you like to share it?")
@@ -862,7 +797,6 @@ class MainActivity : AppCompatActivity() {
 
             Toast.makeText(this, "✅ Exported: ${file.name}", Toast.LENGTH_SHORT).show()
 
-            // Offer to share
             AlertDialog.Builder(this)
                 .setTitle("Export Complete")
                 .setMessage("Trajectory data exported to:\n${file.absolutePath}\n\nWould you like to share it?")
