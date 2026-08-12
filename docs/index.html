@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Brownian NTA Lab</title>
+    <style>
+        :root {
+            --bg-dark: #0b0f19;
+            --card-bg: #161e2e;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-cyan: #00f2fe;
+            --accent-green: #10b981;
+            --accent-magenta: #ff007f;
+            --border-color: #1e293b;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 24px;
+        }
+
+        header {
+            text-align: center;
+            padding-bottom: 30px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        h1 {
+            color: var(--accent-cyan);
+            font-size: 2.2rem;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 24px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+
+        h2 {
+            color: var(--accent-cyan);
+            font-size: 1.4rem;
+            margin-top: 0;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        h3 {
+            color: var(--accent-green);
+            font-size: 1.1rem;
+            margin-top: 18px;
+        }
+
+        ul {
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 10px;
+        }
+
+        a {
+            color: var(--accent-cyan);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .badge {
+            display: inline-block;
+            background-color: rgba(0, 242, 254, 0.1);
+            color: var(--accent-cyan);
+            border: 1px solid var(--accent-cyan);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-right: 6px;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            border-top: 1px solid var(--border-color);
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔬 Brownian NTA Lab</h1>
+            <p class="subtitle">Privacy Policy &amp; Data Governance</p>
+            <div>
+                <span class="badge">Effective: August 12, 2026</span>
+                <span class="badge">100% Offline</span>
+                <span class="badge">No Tracking</span>
+            </div>
+        </header>
+
+        <div class="card">
+            <h2>1. Commitment to Privacy</h2>
+            <p><strong>Brownian NTA Lab</strong> is an open-source educational and research-grade mobile application designed for smartphone-based Nanoparticle Tracking Analysis (NTA) and Brownian motion physics experiments.</p>
+            <p>We respect your privacy. <strong>Brownian NTA Lab does NOT collect, store, or transmit any personal data, location metrics, analytics, or device identifiers.</strong> All video frame analysis, particle detection, and trajectory calculations take place 100% locally on your device.</p>
+        </div>
+
+        <div class="card">
+            <h2>2. Android Permissions &amp; Usage</h2>
+
+            <h3>📷 Camera Permission (<code>android.permission.CAMERA</code>)</h3>
+            <ul>
+                <li><strong>How it is used:</strong> Accesses your device's camera sensor to display a live optical preview and extract real-time image frames for microscopic particle tracking when using a clip-on microscope lens.</li>
+                <li><strong>Data Handling:</strong> Camera frames are processed strictly in volatile memory (RAM) during active tracking sessions. No video streams, photos, or raw camera frames are ever recorded, saved to disk, or transmitted over any network.</li>
+            </ul>
+
+            <h3>📁 File &amp; Storage Access (Local Videos &amp; Data Export)</h3>
+            <ul>
+                <li><strong>Local Video File Analysis:</strong> Uses the standard Android system file picker (<code>ACTION_GET_CONTENT</code>) to allow you to select previously recorded video files stored on your device for offline analysis.</li>
+                <li><strong>Trajectory &amp; Physics Data Export:</strong> Saves extracted trajectory points, Mean Square Displacement (MSD) curves, and calculated physical constants into standard <code>.csv</code> and <code>.json</code> files directly to your device's local Download/Documents folder or shares them via Android system share sheets.</li>
+                <li><strong>Data Handling:</strong> The app never accesses files on your phone without your explicit action using the system file picker.</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>3. Third-Party Services &amp; Network Activity</h2>
+            <p>Brownian NTA Lab operates completely offline and contains no third-party telemetry, analytics SDKs, advertising scripts, or remote server connections.</p>
+            <p>The app contains optional links to external educational reference articles (e.g., Wikipedia pages for Jean Perrin and Albert Einstein). Tapping these links opens your phone's default web browser.</p>
+        </div>
+
+        <div class="card">
+            <h2>4. Children's Privacy (COPPA &amp; GDPR)</h2>
+            <p>Because Brownian NTA Lab does not collect any personal data whatsoever, it is fully compliant with COPPA and GDPR regulations and is safe for use by students, educators, and researchers of all ages.</p>
+        </div>
+
+        <div class="card">
+            <h2>5. Open Source Repository &amp; Contact</h2>
+            <p>This project is open-source. For source code, hardware 3D print models, and documentation, visit:</p>
+            <p>🌐 <strong>GitHub Repository:</strong> <a href="https://github.com/thwump/brownian-motion-app" target="_blank">https://github.com/thwump/brownian-motion-app</a></p>
+        </div>
+
+        <footer>
+            <p>&copy; 2026 Brownian NTA Lab • Open Scientific Tools</p>
+        </footer>
+    </div>
+</body>
+</html>

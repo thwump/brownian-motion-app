@@ -6,6 +6,18 @@ Optimized for **Google Pixel 9** and modern multi-camera Android devices.
 
 ---
 
+## 🔒 Privacy Policy & Data Governance
+
+**Brownian NTA Lab** is committed to 100% user privacy and data security:
+- 📷 **Camera Access (`android.permission.CAMERA`)**: Used exclusively for real-time local particle tracking during active live sessions. No camera footage or images are recorded, stored, or transmitted over any network.
+- 📁 **File & Storage Access**: Used via standard Android system pickers to let users select local pre-recorded video files for offline analysis and export trajectory datasets (`.json` / `.csv`) to local device storage.
+- 🌐 **Offline & Privacy Compliant**: 100% offline, zero remote telemetry, zero analytics SDKs.
+
+Read the full Privacy Policy live on GitHub Pages:
+👉 **[https://thwump.github.io/brownian-motion-app/privacy.html](https://thwump.github.io/brownian-motion-app/privacy.html)** or view [`PRIVACY_POLICY.md`](PRIVACY_POLICY.md).
+
+---
+
 ## 🌟 Key Native Features
 
 - **Hardware Physical Lens Locking**: Utilizes Android **CameraX** to lock `LENS_FACING_BACK` and optical `zoom = 1.0f`, completely forbidding HAL3 multi-camera auto-switching when attached to clip-on microscope lenses.
