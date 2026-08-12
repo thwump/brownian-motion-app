@@ -121,6 +121,88 @@
                     android:paddingVertical="4dp" />
             </FrameLayout>
 
+            <!-- Calibration Confirmation Bar (Appears during calibration on freezed frame) -->
+            <LinearLayout
+                android:id="@+id/layoutCalibrationBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#1e293b"
+                android:padding="12dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📏 Fine-Tune Optical Scale Calibration"
+                    android:textColor="@color/accent_cyan"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvCalibrationReadout"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Drag handles to align line with 1mm ruler mark"
+                    android:textColor="@color/text_main"
+                    android:textSize="12sp"
+                    android:layout_marginTop="4dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="8dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Physical Distance (μm):"
+                        android:textColor="@color/text_muted"
+                        android:textSize="12sp" />
+
+                    <EditText
+                        android:id="@+id/etCalibMicrons"
+                        android:layout_width="100dp"
+                        android:layout_height="wrap_content"
+                        android:inputType="numberDecimal"
+                        android:text="1000.0"
+                        android:textColor="@color/accent_cyan"
+                        android:textSize="14sp"
+                        android:gravity="center"
+                        android:background="#0f172a"
+                        android:padding="6dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="10dp">
+
+                    <Button
+                        android:id="@+id/btnConfirmCalibration"
+                        style="@style/Widget.Material3.Button"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Confirm Scale Calibration"
+                        android:textColor="#0b0f19"
+                        android:backgroundTint="@color/accent_cyan" />
+
+                    <Button
+                        android:id="@+id/btnCancelCalibration"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Cancel"
+                        android:textColor="@color/text_muted"
+                        android:layout_marginStart="8dp" />
+                </LinearLayout>
+            </LinearLayout>
+
             <!-- Toolbar Action Grid (Hidden on Intro Tab) -->
             <LinearLayout
                 android:id="@+id/toolbarActionGrid"
@@ -282,7 +364,7 @@
                         android:layout_marginTop="4dp"
                         android:layout_marginBottom="12dp" />
 
-                    <!-- Physics Concept Card with Proper Math & External Hyperlinks -->
+                    <!-- Physics Concept Card -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -305,11 +387,68 @@
                             android:layout_height="wrap_content"
                             android:textColor="@color/text_muted"
                             android:textSize="12sp"
-                            android:layout_marginTop="6dp"
-                            android:autoLink="web"
-                            android:textColorLink="@color/accent_cyan"
-                            android:linksClickable="true" />
+                            android:layout_marginTop="6dp" />
                     </LinearLayout>
+
+                    <!-- Clickable Wikipedia Resources Section -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🌐 External Scientific References (Wikipedia)"
+                        android:textColor="@color/accent_cyan"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:layout_marginBottom="6dp" />
+
+                    <Button
+                        android:id="@+id/btnWikiPerrin"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="📖 Jean Perrin (1926 Nobel Prize in Physics)"
+                        android:textColor="@color/accent_cyan"
+                        android:gravity="start|center_vertical" />
+
+                    <Button
+                        android:id="@+id/btnWikiEinstein"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="📖 Albert Einstein's 1905 Brownian Motion Theory"
+                        android:textColor="@color/accent_cyan"
+                        android:gravity="start|center_vertical"
+                        android:layout_marginTop="4dp" />
+
+                    <Button
+                        android:id="@+id/btnWikiBoltzmann"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="📖 Boltzmann Constant (k_B = 1.381 × 10⁻²³ J/K)"
+                        android:textColor="@color/accent_cyan"
+                        android:gravity="start|center_vertical"
+                        android:layout_marginTop="4dp" />
+
+                    <Button
+                        android:id="@+id/btnWikiAvogadro"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="📖 Avogadro Constant (N_A = 6.022 × 10²³ /mol)"
+                        android:textColor="@color/accent_cyan"
+                        android:gravity="start|center_vertical"
+                        android:layout_marginTop="4dp" />
+
+                    <Button
+                        android:id="@+id/btnWikiNTA"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="📖 Nanoparticle Tracking Analysis (NTA)"
+                        android:textColor="@color/accent_cyan"
+                        android:gravity="start|center_vertical"
+                        android:layout_marginTop="4dp"
+                        android:layout_marginBottom="12dp" />
 
                     <!-- Setup & Equipment Card -->
                     <LinearLayout
@@ -334,10 +473,7 @@
                             android:layout_height="wrap_content"
                             android:textColor="@color/text_main"
                             android:textSize="12sp"
-                            android:layout_marginTop="6dp"
-                            android:autoLink="web"
-                            android:textColorLink="@color/accent_cyan"
-                            android:linksClickable="true" />
+                            android:layout_marginTop="6dp" />
                     </LinearLayout>
 
                     <!-- Calibration Card -->
@@ -360,7 +496,7 @@
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Exact lens magnification is not critical because scale is calibrated directly in micrometers per pixel (μm/px):\n1. Tap the 'Calibrate' button on the Sim, Camera, or Video tab.\n2. Drag a line across a known distance (e.g., a 1 mm mark on a ruler or stage micrometer).\n3. Enter the physical distance in micrometers (1000 μm for 1 mm) to establish your exact optical scale."
+                            android:text="Exact lens magnification is not critical because scale is calibrated directly in micrometers per pixel (μm/px):\n1. Tap the 'Calibrate' button on the Sim, Camera, or Video tab.\n2. Drag the fine-tuning handles to align with a known distance (e.g., 1 mm mark on a ruler or stage micrometer).\n3. Enter physical distance in micrometers (1000 μm for 1 mm) &amp; tap 'Confirm Scale Calibration'."
                             android:textColor="@color/text_muted"
                             android:textSize="12sp"
                             android:layout_marginTop="6dp" />

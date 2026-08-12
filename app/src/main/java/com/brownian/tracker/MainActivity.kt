@@ -1,6 +1,7 @@
 package com.brownian.tracker
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
@@ -90,13 +91,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupIntroTabContent() {
         val physicsHtml = """
-            In 1908, French physicist <a href="https://en.wikipedia.org/wiki/Jean_Baptiste_Perrin">Jean Perrin</a> measured the random thermal motion of microscopic resin spheres suspended in water. Using <a href="https://en.wikipedia.org/wiki/Brownian_motion">Albert Einstein's 1905 diffusion equation</a>:
+            In 1908, French physicist <b>Jean Perrin</b> measured the random thermal motion of microscopic resin spheres suspended in water. Using <b>Albert Einstein's 1905 diffusion equation</b>:
             <br><br>
             &nbsp;&nbsp;&nbsp;&nbsp;<b><i>D</i> = (<i>k</i><sub>B</sub> · <i>T</i>) / (6 · π · η · <i>a</i>)</b>
             <br><br>
-            Perrin extracted <a href="https://en.wikipedia.org/wiki/Boltzmann_constant">Boltzmann's constant (<i>k</i><sub>B</sub>)</a> and <a href="https://en.wikipedia.org/wiki/Avogadro_constant">Avogadro's number (<i>N</i><sub>A</sub>)</a>, winning the 1926 Nobel Prize in Physics for proving the physical existence of atoms.
+            Perrin extracted <b>Boltzmann's constant (<i>k</i><sub>B</sub>)</b> and <b>Avogadro's number (<i>N</i><sub>A</sub>)</b>, winning the 1926 Nobel Prize in Physics for proving the physical existence of atoms.
             <br><br>
-            This app uses <a href="https://en.wikipedia.org/wiki/Nanoparticle_tracking_analysis">Nanoparticle Tracking Analysis (NTA)</a> algorithms to let you replicate Perrin's Nobel Prize experiment using your smartphone!
+            This app uses <b>Nanoparticle Tracking Analysis (NTA)</b> algorithms to let you replicate Perrin's Nobel Prize experiment using your smartphone!
         """.trimIndent()
 
         val equipmentHtml = """
@@ -113,12 +114,24 @@ class MainActivity : AppCompatActivity() {
         """.trimIndent()
 
         binding.tvIntroPhysicsText.text = Html.fromHtml(physicsHtml, Html.FROM_HTML_MODE_LEGACY)
-        binding.tvIntroPhysicsText.movementMethod = LinkMovementMethod.getInstance()
-
         binding.tvIntroEquipmentText.text = Html.fromHtml(equipmentHtml, Html.FROM_HTML_MODE_LEGACY)
-        binding.tvIntroEquipmentText.movementMethod = LinkMovementMethod.getInstance()
-
         binding.tvIntroQuickstartText.text = Html.fromHtml(quickstartHtml, Html.FROM_HTML_MODE_LEGACY)
+
+        // Clickable Wikipedia Web Resource Buttons
+        binding.btnWikiPerrin.setOnClickListener { openUrl("https://en.wikipedia.org/wiki/Jean_Baptiste_Perrin") }
+        binding.btnWikiEinstein.setOnClickListener { openUrl("https://en.wikipedia.org/wiki/Brownian_motion") }
+        binding.btnWikiBoltzmann.setOnClickListener { openUrl("https://en.wikipedia.org/wiki/Boltzmann_constant") }
+        binding.btnWikiAvogadro.setOnClickListener { openUrl("https://en.wikipedia.org/wiki/Avogadro_constant") }
+        binding.btnWikiNTA.setOnClickListener { openUrl("https://en.wikipedia.org/wiki/Nanoparticle_tracking_analysis") }
+    }
+
+    private fun openUrl(url: String) {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Could not open browser: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun setupNavigationTabs() {
@@ -139,6 +152,11 @@ class MainActivity : AppCompatActivity() {
     private fun switchMode(mode: String) {
         activeMode = mode
         
+        // Reset tracking state when switching modes so old tracks don't bleed across tabs
+        tracker.reset()
+        physics.resetAccumulators()
+        binding.overlayView.updateData(emptyList(), emptyList(), 960, 1280)
+
         // Hide viewport container, action buttons, and metrics bar on Intro tab
         val isIntro = (mode == "intro")
         val controlsVisibility = if (isIntro) View.GONE else View.VISIBLE
@@ -195,8 +213,46 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnCalibrate.setOnClickListener {
+            // Freeze video frame during calibration so finger drag doesn't shift the camera image
+            isPaused = true
+            binding.tvStatusHud.text = "Calibration • Frame Freezed"
+
+            binding.layoutCalibrationBar.visibility = View.VISIBLE
             binding.overlayView.isCalibrationMode = true
-            Toast.makeText(this, "Calibration: Drag a line on the video matching a known physical distance (e.g. 1000 μm for 1mm ruler mark).", Toast.LENGTH_LONG).show()
+            
+            updateCalibrationReadout(binding.overlayView.getCalibrationDistancePx())
+            Toast.makeText(this, "Calibration Mode: Drag touch handles to align line with 1mm mark, then tap Confirm.", Toast.LENGTH_LONG).show()
+        }
+
+        binding.btnConfirmCalibration.setOnClickListener {
+            val distPx = binding.overlayView.getCalibrationDistancePx()
+            if (distPx <= 10f) {
+                Toast.makeText(this, "Line is too short. Drag handles to set calibration line length.", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val microns = binding.etCalibMicrons.text.toString().toDoubleOrNull() ?: 1000.0
+            val baseScale = (microns / distPx).toFloat()
+            val currentZoom = binding.overlayView.currentZoomRatio
+            val effectiveScale = baseScale / currentZoom
+
+            binding.overlayView.baseScaleMicronsPerPixel = baseScale
+            physics.scaleMicronsPerPixel = effectiveScale
+            simulator.scaleMicronsPerPixel = effectiveScale
+
+            binding.overlayView.isCalibrationMode = false
+            binding.layoutCalibrationBar.visibility = View.GONE
+            isPaused = false
+            binding.tvStatusHud.text = "Tracking • Active"
+
+            Toast.makeText(this, String.format("✅ Scale Calibrated! 1.0x: %.3f μm/px | Effective (%.1fx): %.3f μm/px", baseScale, currentZoom, effectiveScale), Toast.LENGTH_LONG).show()
+        }
+
+        binding.btnCancelCalibration.setOnClickListener {
+            binding.overlayView.isCalibrationMode = false
+            binding.layoutCalibrationBar.visibility = View.GONE
+            isPaused = false
+            binding.tvStatusHud.text = "Tracking • Active"
         }
 
         binding.switchShowOverlay.setOnCheckedChangeListener { _, isChecked ->
@@ -516,30 +572,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupCalibrationGesture() {
-        binding.overlayView.onCalibrationComplete = { distPx ->
-            val builder = AlertDialog.Builder(this)
-            builder.setTitle("Enter Calibration Distance")
-            builder.setMessage(String.format("Measured line: %.1f pixels at 1.0x zoom.\nEnter physical distance in micrometers (e.g. 1000 μm for 1mm ruler mark):", distPx))
-
-            val input = android.widget.EditText(this)
-            input.setText("1000.0")
-            builder.setView(input)
-
-            builder.setPositiveButton("Set Base Scale") { _, _ ->
-                val microns = input.text.toString().toDoubleOrNull() ?: 1000.0
-                val baseScale = (microns / distPx).toFloat()
-                
-                binding.overlayView.baseScaleMicronsPerPixel = baseScale
-                val currentZoom = binding.overlayView.currentZoomRatio
-                val effectiveScale = baseScale / currentZoom
-
-                physics.scaleMicronsPerPixel = effectiveScale
-                simulator.scaleMicronsPerPixel = effectiveScale
-                Toast.makeText(this, String.format("Base Scale set! 1.0x: %.3f μm/px | Effective (%.1fx): %.3f μm/px", baseScale, currentZoom, effectiveScale), Toast.LENGTH_LONG).show()
-            }
-            builder.setNegativeButton("Cancel", null)
-            builder.show()
+        binding.overlayView.onCalibrationLineChanged = { distPx ->
+            updateCalibrationReadout(distPx)
         }
+
+        binding.etCalibMicrons.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                val distPx = binding.overlayView.getCalibrationDistancePx()
+                updateCalibrationReadout(distPx)
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+    }
+
+    private fun updateCalibrationReadout(distPx: Float) {
+        val microns = binding.etCalibMicrons.text.toString().toDoubleOrNull() ?: 1000.0
+        val liveScale = if (distPx > 0f) (microns / distPx) else 0.0
+        binding.tvCalibrationReadout.text = String.format("Line Length: %.1f px | Live Scale (1.0x): %.3f μm/px", distPx, liveScale)
     }
 
     private fun startSimulationLoop() {
