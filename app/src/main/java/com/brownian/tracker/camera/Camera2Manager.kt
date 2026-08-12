@@ -17,14 +17,10 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.annotation.RequiresPermission
 import androidx.camera.core.ImageProxy
-import androidx.camera.core.impl.TagBundle
 import androidx.lifecycle.LifecycleOwner
 import com.brownian.tracker.ui.AspectRatioSurfaceView
 import java.nio.ByteBuffer
 import java.util.concurrent.Executor
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
-import kotlinx.coroutines.suspendCancellableCoroutine
 
 private const val TAG = "Camera2Manager"
 private const val MAX_IMAGES = 3
@@ -53,6 +49,7 @@ class Camera2Manager(
     private var cameraDevice: CameraDevice? = null
     private var captureSession: CameraCaptureSession? = null
     private var imageReader: ImageReader? = null
+    private var previewRequestBuilder: CaptureRequest.Builder? = null
     
     private var activeCharacteristics: CameraCharacteristics? = null
     private var previewSurface: Surface? = null
@@ -68,7 +65,7 @@ class Camera2Manager(
     
     /**
      * Find the best back camera with YUV_420_888 support.
-     * Prioritizes cameras with larger sensors and better capabilities.
+     * Prioritizes main camera with manual focus support.
      */
     private fun findBestCamera(): CameraCapabilities? {
         val candidates = mutableListOf<CameraCapabilities>()
@@ -105,8 +102,8 @@ class Camera2Manager(
             Log.d(TAG, "Camera $id: ${largest.width}x${largest.height} YUV, minFocusDist=$minFocusDist")
         }
         
-        // Sort by resolution (higher is better for microscopy)
-        return candidates.maxByOrNull { it.maxYuvWidth * it.maxYuvHeight }
+        // Return main rear camera (camera "0") or camera with largest resolution
+        return candidates.firstOrNull { it.cameraId == "0" } ?: candidates.maxByOrNull { it.maxYuvWidth * it.maxYuvHeight }
     }
     
     private fun startBackgroundThread() {
@@ -176,17 +173,13 @@ class Camera2Manager(
         
         Log.d(TAG, "Selected camera ${capabilities.cameraId}: ${capabilities.maxYuvWidth}x${capabilities.maxYuvHeight}, sensor orientation: $sensorOrientation")
         
-        // Set aspect ratio on surface view AND holder to match sensor - CRITICAL for accurate measurements!
-        // For portrait mode (sensor orientation 90 or 270), swap width and height
-        // Use native sensor resolution for both preview and analysis to avoid any scaling/stretching
+        // Set aspect ratio on surface view AND holder to match sensor
         surfaceView.post {
-            // Swap dimensions if sensor is rotated 90 or 270 degrees (portrait orientation)
             val needsSwap = sensorOrientation == 90 || sensorOrientation == 270
             val displayWidth = if (needsSwap) capabilities.maxYuvHeight else capabilities.maxYuvWidth
             val displayHeight = if (needsSwap) capabilities.maxYuvWidth else capabilities.maxYuvHeight
             
             surfaceView.setAspectRatio(displayWidth, displayHeight)
-            // Set holder to sensor size (not swapped - camera API handles rotation)
             surfaceView.holder.setFixedSize(capabilities.maxYuvWidth, capabilities.maxYuvHeight)
             Log.d(TAG, "Display aspect: ${displayWidth}x${displayHeight}, Holder size: ${capabilities.maxYuvWidth}x${capabilities.maxYuvHeight}")
         }
@@ -202,11 +195,9 @@ class Camera2Manager(
         imageReader?.setOnImageAvailableListener({ reader ->
             val image = reader.acquireLatestImage() ?: return@setOnImageAvailableListener
             
-            // Convert to ImageProxy wrapper for compatibility with existing code
+            // Convert to ImageProxy wrapper for compatibility
             val proxy = ImageProxyWrapper(image)
             onFrameAnalyzer(proxy)
-            
-            // Note: The analyzer is responsible for closing the proxy/image
         }, cameraHandler)
         
         // Open camera device
@@ -247,16 +238,11 @@ class Camera2Manager(
         val device = cameraDevice ?: return
         val reader = imageReader ?: return
         
-        // Get surface from SurfaceView and validate it
         val surface = surfaceView.holder.surface
         if (!surface.isValid) {
             Log.w(TAG, "Surface is not valid, cannot create capture session")
             return
         }
-        
-        // Log surface dimensions for debugging
-        val surfaceFrame = surfaceView.holder.surfaceFrame
-        Log.d(TAG, "Surface frame: ${surfaceFrame.width()}x${surfaceFrame.height()}")
         
         previewSurface = surface
         val previewSurf = previewSurface ?: return
@@ -292,30 +278,23 @@ class Camera2Manager(
         val reader = imageReader ?: return
         
         try {
-            val requestBuilder = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
+            val builder = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
                 addTarget(previewSurf)
                 addTarget(reader.surface)
                 
-                // Manual control mode
                 set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
-                
-                // Apply current focus setting
                 applyFocusSetting(this)
-                
-                // Apply current zoom
                 applyZoomSetting(this)
                 
-                // Torch
                 if (torchActive) {
                     set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH)
                 }
-                
-                // Disable scene mode for manual control
                 set(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_DISABLED)
             }
             
-            session.setRepeatingRequest(requestBuilder.build(), null, cameraHandler)
-            Log.d(TAG, "Preview started")
+            previewRequestBuilder = builder
+            session.setRepeatingRequest(builder.build(), null, cameraHandler)
+            Log.d(TAG, "Preview started with focusDistance=$currentFocusDistance")
             
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start preview: ${e.message}", e)
@@ -326,21 +305,18 @@ class Camera2Manager(
         val focusDist = currentFocusDistance
         
         if (focusDist != null) {
-            // Manual focus mode
             builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF)
             builder.set(CaptureRequest.LENS_FOCUS_DISTANCE, focusDist)
+            builder.set(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_CANCEL)
         } else {
-            // Continuous autofocus
             builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
         }
     }
     
     private fun applyZoomSetting(builder: CaptureRequest.Builder) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // Use zoom ratio API on Android 11+
             builder.set(CaptureRequest.CONTROL_ZOOM_RATIO, currentZoomRatio)
         } else {
-            // Use crop region on older Android
             val chars = activeCharacteristics ?: return
             val sensorRect = chars.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE) ?: return
             
@@ -355,15 +331,8 @@ class Camera2Manager(
     }
     
     /**
-     * Set manual focus distance.
-     * 
-     * @param focusDistance Focus distance in diopters (1/meters)
-     *   - 0.0f = infinity focus (ideal for distant objects/stars)
-     *   - Higher values = closer focus
-     *   - maxFocusDistance = minimum focus distance (closest possible focus)
-     *   
-     * For microscopy: Use values close to maxFocusDistance (close focus)
-     * The slider should map 0.0-1.0 to the device's min-max focus range
+     * Set manual focus distance in diopters.
+     * 0.0f = infinity, minFocusDistance = closest macro focus.
      */
     fun setManualFocus(focusDistance: Float): Boolean {
         if (minFocusDistance <= 0f) {
@@ -371,13 +340,26 @@ class Camera2Manager(
             return false
         }
         
-        // Clamp to valid range: 0.0 (infinity) to minFocusDistance (closest)
         val clampedDistance = focusDistance.coerceIn(0f, minFocusDistance)
         currentFocusDistance = clampedDistance
         
-        Log.d(TAG, "Manual focus set to $clampedDistance diopters (range: 0.0 - $minFocusDistance)")
+        val session = captureSession
+        val builder = previewRequestBuilder
         
-        // Update preview with new focus setting
+        if (session != null && builder != null) {
+            builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF)
+            builder.set(CaptureRequest.LENS_FOCUS_DISTANCE, clampedDistance)
+            builder.set(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_CANCEL)
+            
+            try {
+                session.setRepeatingRequest(builder.build(), null, cameraHandler)
+                Log.d(TAG, "Updated manual focus to $clampedDistance diopters (max: $minFocusDistance)")
+                return true
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to set repeating request for manual focus: ${e.message}")
+            }
+        }
+        
         startPreview()
         return true
     }
@@ -392,23 +374,41 @@ class Camera2Manager(
         return true
     }
     
-    /**
-     * Get the maximum focus distance (for closest focus)
-     */
     fun getMaxFocusDistance(): Float = minFocusDistance
     
-    /**
-     * Check if manual focus is supported
-     */
     fun supportsManualFocus(): Boolean = minFocusDistance > 0f
     
     fun setZoomRatio(ratio: Float) {
         currentZoomRatio = ratio.coerceIn(1.0f, 10.0f)
+        val session = captureSession
+        val builder = previewRequestBuilder
+        
+        if (session != null && builder != null) {
+            applyZoomSetting(builder)
+            try {
+                session.setRepeatingRequest(builder.build(), null, cameraHandler)
+                return
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to set zoom ratio: ${e.message}")
+            }
+        }
         startPreview()
     }
     
     fun toggleTorch(): Boolean {
         torchActive = !torchActive
+        val session = captureSession
+        val builder = previewRequestBuilder
+        
+        if (session != null && builder != null) {
+            builder.set(CaptureRequest.FLASH_MODE, if (torchActive) CaptureRequest.FLASH_MODE_TORCH else CaptureRequest.FLASH_MODE_OFF)
+            try {
+                session.setRepeatingRequest(builder.build(), null, cameraHandler)
+                return torchActive
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to toggle torch: ${e.message}")
+            }
+        }
         startPreview()
         return torchActive
     }
@@ -425,6 +425,8 @@ class Camera2Manager(
             
             imageReader?.close()
             imageReader = null
+            
+            previewRequestBuilder = null
             
             stopBackgroundThread()
             
@@ -449,8 +451,6 @@ private data class CameraCapabilities(
 
 /**
  * Minimal wrapper to provide Image data in a format compatible with ImageProxy
- * We avoid implementing the full ImageProxy interface to sidestep compatibility issues
- * Instead, we provide only the methods actually used by the tracking code
  */
 private class ImageProxyWrapper(private val image: android.media.Image) : ImageProxy {
     
@@ -478,7 +478,6 @@ private class ImageProxyWrapper(private val image: android.media.Image) : ImageP
         }.toTypedArray()
     }
     
-    // These methods are not used by the particle tracking code but are required by the interface
     @Suppress("OVERRIDE_DEPRECATION")
     override fun getImageInfo(): androidx.camera.core.ImageInfo {
         TODO("getImageInfo() not implemented - not needed for tracking")
