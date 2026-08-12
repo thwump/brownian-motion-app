@@ -437,7 +437,25 @@ class MainActivity : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         })
 
-        // Temperature, Viscosity, Drift, Particle Size Controls
+        // Synchronized Top & Panel Temperature Inputs
+        binding.etTopTempInput.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                if (!isUpdatingFromCode) {
+                    val temp = s.toString().toDoubleOrNull()
+                    if (temp != null && temp in 0.0..100.0) {
+                        simulator.tempCelsius = temp
+                        isUpdatingFromCode = true
+                        binding.etTempInput.setText(String.format("%.1f", temp))
+                        binding.seekBarTemp.progress = temp.toInt().coerceIn(0, 60)
+                        isUpdatingFromCode = false
+                        physics.resetAccumulators()
+                    }
+                }
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
+
         binding.seekBarTemp.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser && !isUpdatingFromCode) {
@@ -445,6 +463,7 @@ class MainActivity : AppCompatActivity() {
                     simulator.tempCelsius = temp
                     isUpdatingFromCode = true
                     binding.etTempInput.setText(String.format("%.1f", temp))
+                    binding.etTopTempInput.setText(String.format("%.1f", temp))
                     isUpdatingFromCode = false
                     physics.resetAccumulators()
                 }
@@ -460,6 +479,7 @@ class MainActivity : AppCompatActivity() {
                     if (valTemp != null && valTemp in 0.0..100.0) {
                         simulator.tempCelsius = valTemp
                         isUpdatingFromCode = true
+                        binding.etTopTempInput.setText(String.format("%.1f", valTemp))
                         binding.seekBarTemp.progress = valTemp.toInt().coerceIn(0, 60)
                         isUpdatingFromCode = false
                         physics.resetAccumulators()
@@ -778,11 +798,6 @@ class MainActivity : AppCompatActivity() {
                     polyData.sizeHistogram.bins,
                     polyData.sizeHistogram.counts
                 )
-                updatePerrinDisplay(
-                    binding.tvBoltzmannConstant,
-                    binding.tvAvogadroNumber,
-                    constants
-                )
             }
             "camera" -> {
                 binding.msdChartViewCamera.updateMsdData(msdResult)
@@ -790,11 +805,6 @@ class MainActivity : AppCompatActivity() {
                     ChartType.PSD_HISTOGRAM,
                     polyData.sizeHistogram.bins,
                     polyData.sizeHistogram.counts
-                )
-                updatePerrinDisplay(
-                    binding.tvBoltzmannConstantCamera,
-                    binding.tvAvogadroNumberCamera,
-                    constants
                 )
             }
             "video" -> {
@@ -804,18 +814,13 @@ class MainActivity : AppCompatActivity() {
                     polyData.sizeHistogram.bins,
                     polyData.sizeHistogram.counts
                 )
-                updatePerrinDisplay(
-                    binding.tvBoltzmannConstantVideo,
-                    binding.tvAvogadroNumberVideo,
-                    constants
-                )
             }
         }
+
+        updatePerrinDisplay(constants)
     }
 
     private fun updatePerrinDisplay(
-        tvBoltzmann: android.widget.TextView,
-        tvAvogadro: android.widget.TextView,
         constants: com.brownian.tracker.physics.FundamentalConstantsResult
     ) {
         val kB_str = String.format("%.3e", constants.measuredBoltzmann)
@@ -826,14 +831,19 @@ class MainActivity : AppCompatActivity() {
         val NA_ref_str = String.format("%.3e", constants.referenceAvogadro)
         val NA_error = String.format("%.1f", kotlin.math.abs(constants.avogadroErrorPercent))
 
-        tvBoltzmann.text = "k_B = $kB_str J/K (±$kB_error%) | True: $kB_ref_str J/K"
-        tvAvogadro.text = "N_A = $NA_str /mol (±$NA_error%) | True: $NA_ref_str /mol"
+        val kB_html = "<b><i>k</i><sub>B</sub></b> = $kB_str J/K &nbsp;<font color='#10b981'>(±$kB_error%)</font> &nbsp;<font color='#64748b'>| True: $kB_ref_str</font>"
+        val NA_html = "<b><i>N</i><sub>A</sub></b> = $NA_str /mol &nbsp;<font color='#00f2fe'>(±$NA_error%)</font> &nbsp;<font color='#64748b'>| True: $NA_ref_str</font>"
+
+        binding.tvBoltzmannVal.text = Html.fromHtml(kB_html, Html.FROM_HTML_MODE_LEGACY)
+        binding.tvAvogadroVal.text = Html.fromHtml(NA_html, Html.FROM_HTML_MODE_LEGACY)
     }
 
     private fun updateUI(D: Double, tempC: Double, meanDiam: Double, totalSteps: Long = 0, stdErr: Double = 0.0) {
-        binding.tvDiffVal.text = String.format("%.3f μm²/s", D)
-        binding.tvTempVal.text = String.format("%.1f °C (±%.1f%%, N=%d)", tempC, stdErr, totalSteps)
-        binding.tvSizeVal.text = String.format("%.2f μm", meanDiam)
+        val d_html = "<b><i>d̄</i></b> = ${String.format("%.2f", meanDiam)} μm"
+        val D_html = "<b><i>D</i></b> = ${String.format("%.3f", D)} μm²/s"
+
+        binding.tvDiffVal.text = Html.fromHtml(D_html, Html.FROM_HTML_MODE_LEGACY)
+        binding.tvSizeVal.text = Html.fromHtml(d_html, Html.FROM_HTML_MODE_LEGACY)
     }
 
     private fun exportDataJSON() {

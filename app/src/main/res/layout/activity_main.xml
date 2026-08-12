@@ -254,83 +254,149 @@
                     android:layout_marginStart="4dp" />
             </LinearLayout>
 
-            <!-- Real-time Metrics Bar (Hidden on Intro Tab) -->
+            <!-- CONSOLIDATED REAL-TIME METRICS DASHBOARD (Directly Below Viewport & Controls) -->
             <LinearLayout
                 android:id="@+id/realtimeMetricsBar"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:padding="10dp"
+                android:orientation="vertical"
+                android:padding="12dp"
                 android:background="@color/card_bg"
                 android:visibility="gone">
 
+                <!-- Row 1: Sample Temp (T_sample) [Editable], Diffusion (D), Mean Diam (d̄) -->
                 <LinearLayout
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <!-- Editable Sample Temperature Field -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Sample Temp (T)"
+                            android:textColor="@color/text_muted"
+                            android:textSize="11sp" />
+
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginTop="2dp">
+
+                            <EditText
+                                android:id="@+id/etTopTempInput"
+                                android:layout_width="65dp"
+                                android:layout_height="wrap_content"
+                                android:inputType="numberDecimal"
+                                android:text="20.0"
+                                android:textColor="@color/accent_cyan"
+                                android:textSize="15sp"
+                                android:textStyle="bold"
+                                android:gravity="center"
+                                android:background="#1a1e2e"
+                                android:paddingVertical="2dp"
+                                android:paddingHorizontal="4dp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text=" °C"
+                                android:textColor="@color/accent_cyan"
+                                android:textSize="14sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- Diffusion Coefficient D -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Diffusion Coeff (D)"
+                            android:textColor="@color/text_muted"
+                            android:textSize="11sp" />
+
+                        <TextView
+                            android:id="@+id/tvDiffVal"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0.000 μm²/s"
+                            android:textColor="@color/text_main"
+                            android:textSize="15sp"
+                            android:textStyle="bold"
+                            android:layout_marginTop="2dp" />
+                    </LinearLayout>
+
+                    <!-- Mean Particle Diameter d̄ -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Mean Diam (d̄)"
+                            android:textColor="@color/text_muted"
+                            android:textSize="11sp" />
+
+                        <TextView
+                            android:id="@+id/tvSizeVal"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="2.00 μm"
+                            android:textColor="@color/accent_magenta"
+                            android:textSize="15sp"
+                            android:textStyle="bold"
+                            android:layout_marginTop="2dp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#1e293b"
+                    android:layout_marginVertical="8dp" />
+
+                <!-- Row 2: Fundamental Constants (k_B and N_A) Extracted in Realtime -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
                     android:orientation="vertical">
 
                     <TextView
-                        android:layout_width="wrap_content"
+                        android:id="@+id/tvBoltzmannVal"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Extracted Temp (T)"
-                        android:textColor="@color/text_muted"
-                        android:textSize="11sp" />
+                        android:text="k_B = 1.381×10⁻²³ J/K (calculating...)"
+                        android:textColor="@color/accent_green"
+                        android:textSize="13sp"
+                        android:fontFamily="sans-serif-medium" />
 
                     <TextView
-                        android:id="@+id/tvTempVal"
-                        android:layout_width="wrap_content"
+                        android:id="@+id/tvAvogadroVal"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="20.0 °C"
+                        android:text="N_A = 6.022×10²³ /mol (calculating...)"
                         android:textColor="@color/accent_cyan"
-                        android:textSize="15sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Diffusion Coeff (D)"
-                        android:textColor="@color/text_muted"
-                        android:textSize="11sp" />
-
-                    <TextView
-                        android:id="@+id/tvDiffVal"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="0.00 μm²/s"
-                        android:textColor="@color/text_main"
-                        android:textSize="15sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Mean Diameter (d̄)"
-                        android:textColor="@color/text_muted"
-                        android:textSize="11sp" />
-
-                    <TextView
-                        android:id="@+id/tvSizeVal"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="2.00 μm"
-                        android:textColor="@color/accent_magenta"
-                        android:textSize="15sp"
-                        android:textStyle="bold" />
+                        android:textSize="13sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:layout_marginTop="4dp" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -738,52 +804,6 @@
                         android:layout_height="160dp"
                         android:layout_marginTop="8dp" />
 
-                    <!-- Perrin's Nobel Prize Experiment: Fundamental Constants -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:background="#1a1e2e"
-                        android:padding="12dp"
-                        android:layout_marginTop="12dp">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="🏆 Jean Perrin's Nobel Prize Experiment (1926)"
-                            android:textColor="@color/accent_green"
-                            android:textSize="13sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Proving atoms exist by measuring fundamental constants from Brownian motion"
-                            android:textColor="@color/text_muted"
-                            android:textSize="11sp"
-                            android:layout_marginTop="2dp"
-                            android:layout_marginBottom="8dp" />
-
-                        <TextView
-                            android:id="@+id/tvBoltzmannConstant"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="k_B = 1.38 × 10⁻²³ J/K (calculating...)"
-                            android:textColor="@color/accent_cyan"
-                            android:textSize="12sp"
-                            android:fontFamily="monospace" />
-
-                        <TextView
-                            android:id="@+id/tvAvogadroNumber"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="N_A = 6.02 × 10²³ /mol (calculating...)"
-                            android:textColor="@color/accent_magenta"
-                            android:textSize="12sp"
-                            android:fontFamily="monospace"
-                            android:layout_marginTop="4dp" />
-                    </LinearLayout>
-
                     <!-- Export Data Section -->
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -1065,52 +1085,6 @@
                         android:layout_height="160dp"
                         android:layout_marginTop="8dp" />
 
-                    <!-- Perrin's Nobel Prize Experiment: Fundamental Constants -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:background="#1a1e2e"
-                        android:padding="12dp"
-                        android:layout_marginTop="12dp">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="🏆 Jean Perrin's Nobel Prize Experiment (1926)"
-                            android:textColor="@color/accent_green"
-                            android:textSize="13sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Proving atoms exist by measuring fundamental constants from Brownian motion"
-                            android:textColor="@color/text_muted"
-                            android:textSize="11sp"
-                            android:layout_marginTop="2dp"
-                            android:layout_marginBottom="8dp" />
-
-                        <TextView
-                            android:id="@+id/tvBoltzmannConstantCamera"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="k_B = 1.38 × 10⁻²³ J/K (calculating...)"
-                            android:textColor="@color/accent_cyan"
-                            android:textSize="12sp"
-                            android:fontFamily="monospace" />
-
-                        <TextView
-                            android:id="@+id/tvAvogadroNumberCamera"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="N_A = 6.02 × 10²³ /mol (calculating...)"
-                            android:textColor="@color/accent_magenta"
-                            android:textSize="12sp"
-                            android:fontFamily="monospace"
-                            android:layout_marginTop="4dp" />
-                    </LinearLayout>
-
                     <!-- Export Data Section for Camera -->
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -1186,52 +1160,6 @@
                         android:layout_width="match_parent"
                         android:layout_height="160dp"
                         android:layout_marginTop="8dp" />
-
-                    <!-- Perrin's Nobel Prize Experiment: Fundamental Constants -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:background="#1a1e2e"
-                        android:padding="12dp"
-                        android:layout_marginTop="12dp">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="🏆 Jean Perrin's Nobel Prize Experiment (1926)"
-                            android:textColor="@color/accent_green"
-                            android:textSize="13sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Proving atoms exist by measuring fundamental constants from Brownian motion"
-                            android:textColor="@color/text_muted"
-                            android:textSize="11sp"
-                            android:layout_marginTop="2dp"
-                            android:layout_marginBottom="8dp" />
-
-                        <TextView
-                            android:id="@+id/tvBoltzmannConstantVideo"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="k_B = 1.38 × 10⁻²³ J/K (calculating...)"
-                            android:textColor="@color/accent_cyan"
-                            android:textSize="12sp"
-                            android:fontFamily="monospace" />
-
-                        <TextView
-                            android:id="@+id/tvAvogadroNumberVideo"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="N_A = 6.02 × 10²³ /mol (calculating...)"
-                            android:textColor="@color/accent_magenta"
-                            android:textSize="12sp"
-                            android:fontFamily="monospace"
-                            android:layout_marginTop="4dp" />
-                    </LinearLayout>
 
                     <!-- Export Data Section for Video -->
                     <LinearLayout
