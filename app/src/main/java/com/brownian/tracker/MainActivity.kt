@@ -228,6 +228,9 @@ class MainActivity : AppCompatActivity() {
             binding.layoutCalibrationBar.visibility = View.VISIBLE
             binding.overlayView.isCalibrationMode = true
             
+            // Prevent outer ScrollView from scrolling while calibrating
+            binding.mainScrollView.requestDisallowInterceptTouchEvent(true)
+            
             updateCalibrationReadout(binding.overlayView.getCalibrationDistancePx())
             Toast.makeText(this, "Calibration Mode: Drag touch handles to align line with 1mm mark, then tap Confirm.", Toast.LENGTH_LONG).show()
         }
@@ -252,6 +255,7 @@ class MainActivity : AppCompatActivity() {
 
             binding.overlayView.isCalibrationMode = false
             binding.layoutCalibrationBar.visibility = View.GONE
+            binding.mainScrollView.requestDisallowInterceptTouchEvent(false)
             isPaused = false
             binding.tvStatusHud.text = "Tracking • Active"
 
@@ -265,6 +269,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnCancelCalibration.setOnClickListener {
             binding.overlayView.isCalibrationMode = false
             binding.layoutCalibrationBar.visibility = View.GONE
+            binding.mainScrollView.requestDisallowInterceptTouchEvent(false)
             isPaused = false
             binding.tvStatusHud.text = "Tracking • Active"
 

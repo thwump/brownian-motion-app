@@ -165,6 +165,9 @@ class OverlayView @JvmOverloads constructor(
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (!isCalibrationMode) return super.onTouchEvent(event)
 
+        // Lock out parent ScrollView from scrolling during calibration handle dragging
+        parent?.requestDisallowInterceptTouchEvent(true)
+
         val touchX = event.x
         val touchY = event.y
 
@@ -175,7 +178,7 @@ class OverlayView @JvmOverloads constructor(
             MotionEvent.ACTION_DOWN -> {
                 val distToP1 = hypot(touchX - p1.x, touchY - p1.y)
                 val distToP2 = hypot(touchX - p2.x, touchY - p2.y)
-                val touchRadius = 80f // 80px touch target radius for comfortable handle grabbing
+                val touchRadius = 90f // 90px touch target radius for comfortable handle grabbing
 
                 activeDraggingHandle = when {
                     distToP1 < touchRadius && distToP1 <= distToP2 -> 1
