@@ -296,9 +296,32 @@ class MainActivity : AppCompatActivity() {
             tracker.enableDriftCorrection = isChecked
         }
 
-        binding.btnToggleTorch.setOnClickListener {
+        // Camera Quick Settings Toggles (Focus, Zoom, Detect, Torch)
+        binding.btnQuickFocus.setOnClickListener {
+            val isShown = binding.sheetFocus.visibility == View.VISIBLE
+            binding.sheetFocus.visibility = if (isShown) View.GONE else View.VISIBLE
+            binding.sheetZoom.visibility = View.GONE
+            binding.sheetDetection.visibility = View.GONE
+        }
+
+        binding.btnQuickZoom.setOnClickListener {
+            val isShown = binding.sheetZoom.visibility == View.VISIBLE
+            binding.sheetZoom.visibility = if (isShown) View.GONE else View.VISIBLE
+            binding.sheetFocus.visibility = View.GONE
+            binding.sheetDetection.visibility = View.GONE
+        }
+
+        binding.btnQuickDetection.setOnClickListener {
+            val isShown = binding.sheetDetection.visibility == View.VISIBLE
+            binding.sheetDetection.visibility = if (isShown) View.GONE else View.VISIBLE
+            binding.sheetFocus.visibility = View.GONE
+            binding.sheetZoom.visibility = View.GONE
+        }
+
+        binding.btnQuickTorch.setOnClickListener {
             if (::cameraManager.isInitialized) {
                 val torchOn = cameraManager.toggleTorch()
+                binding.btnQuickTorch.text = if (torchOn) "💡 Torch ON" else "💡 Torch"
                 Toast.makeText(this, if (torchOn) "Flashlight ON" else "Flashlight OFF", Toast.LENGTH_SHORT).show()
             }
         }
