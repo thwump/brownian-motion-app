@@ -62,7 +62,7 @@ class Camera2Manager(
     private var minFocusDistance: Float = 0f
     
     /**
-     * Finds the primary main rear camera across all Android devices.
+     * Finds the primary main rear camera (standard 1.0x wide-angle, avoiding ultrawide 0.5x).
      */
     private fun findBestCamera(): CameraCapabilities? {
         val candidates = mutableListOf<CameraCapabilities>()
@@ -84,9 +84,41 @@ class Camera2Manager(
             
             val minFocusDist = chars.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f
             val focusModes = chars.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES) ?: intArrayOf()
+            val focalLengths = chars.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS) ?: floatArrayOf()
+            
+            // Check for physical camera IDs in logical multi-camera
+            val physicalIds = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                chars.physicalCameraIds
+            } else {
+                emptySet<String>()
+            }
+            
+            // Find main wide physical ID (typically the physical camera with focal length ~6.9mm on Pixel 9)
+            var mainPhysicalId: String? = null
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                for (pId in physicalIds) {
+                    try {
+                        val pChars = cameraManager.getCameraCharacteristics(pId)
+                        val pFocals = pChars.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS) ?: floatArrayOf()
+                        val pMinFocus = pChars.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f
+                        // Main wide lens typically has focal length > 4.0mm (e.g. 6.9mm), while ultrawide/macro has focal length ~2.0mm and minFocusDistance ~50.0
+                        if (pFocals.any { it > 4.0f }) {
+                            mainPhysicalId = pId
+                            break
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to read physical camera $pId: ${e.message}")
+                    }
+                }
+                // Fallback: Default to physical ID "2" or first physical ID if not found
+                if (mainPhysicalId == null && physicalIds.isNotEmpty()) {
+                    mainPhysicalId = physicalIds.firstOrNull { it == "2" } ?: physicalIds.first()
+                }
+            }
             
             val cap = CameraCapabilities(
                 cameraId = id,
+                physicalCameraId = mainPhysicalId,
                 characteristics = chars,
                 maxYuvWidth = largest.width,
                 maxYuvHeight = largest.height,
@@ -156,7 +188,7 @@ class Camera2Manager(
         minFocusDistance = capabilities.minFocusDistance
         
         val sensorOrientation = capabilities.characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 0
-        Log.d(TAG, "Selected primary main camera ${capabilities.cameraId}: ${capabilities.maxYuvWidth}x${capabilities.maxYuvHeight}, sensor orientation: $sensorOrientation")
+        Log.d(TAG, "Selected primary main camera ${capabilities.cameraId} (physical: ${capabilities.physicalCameraId}): ${capabilities.maxYuvWidth}x${capabilities.maxYuvHeight}, sensor orientation: $sensorOrientation")
         
         surfaceView.post {
             val needsSwap = sensorOrientation == 90 || sensorOrientation == 270
@@ -186,7 +218,7 @@ class Camera2Manager(
                 object : CameraDevice.StateCallback() {
                     override fun onOpened(camera: CameraDevice) {
                         cameraDevice = camera
-                        createCaptureSession()
+                        createCaptureSession(capabilities.physicalCameraId)
                     }
                     
                     override fun onDisconnected(camera: CameraDevice) {
@@ -208,7 +240,7 @@ class Camera2Manager(
         }
     }
     
-    private fun createCaptureSession() {
+    private fun createCaptureSession(mainPhysicalCameraId: String?) {
         if (isShuttingDown) return
         
         val device = cameraDevice ?: return
@@ -220,10 +252,22 @@ class Camera2Manager(
         previewSurface = surface
         val previewSurf = previewSurface ?: return
         
-        val outputs = listOf(
-            OutputConfiguration(previewSurf),
-            OutputConfiguration(reader.surface)
-        )
+        val previewConfig = OutputConfiguration(previewSurf)
+        val readerConfig = OutputConfiguration(reader.surface)
+        
+        // Explicitly bind stream outputs to the primary physical camera lens (e.g. main wide "2")
+        // to prevent the HAL from auto-switching to the 0.5x ultrawide lens!
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && mainPhysicalCameraId != null) {
+            try {
+                previewConfig.setPhysicalCameraId(mainPhysicalCameraId)
+                readerConfig.setPhysicalCameraId(mainPhysicalCameraId)
+                Log.d(TAG, "Bound OutputConfigurations strictly to physical main lens $mainPhysicalCameraId")
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not set physical camera ID: ${e.message}")
+            }
+        }
+        
+        val outputs = listOf(previewConfig, readerConfig)
         
         val sessionConfig = SessionConfiguration(
             SessionConfiguration.SESSION_REGULAR,
@@ -256,13 +300,19 @@ class Camera2Manager(
                 addTarget(reader.surface)
                 
                 set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+                
+                // Explicitly disable scene modes, auto-macro modes, and extended scenes that trigger lens switching
+                set(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_DISABLED)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    set(CaptureRequest.CONTROL_EXTENDED_SCENE_MODE, CaptureRequest.CONTROL_EXTENDED_SCENE_MODE_DISABLED)
+                }
+                
                 applyFocusSetting(this)
                 applyZoomSetting(this)
                 
                 if (torchActive) {
                     set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH)
                 }
-                set(CaptureRequest.CONTROL_SCENE_MODE, CaptureRequest.CONTROL_SCENE_MODE_DISABLED)
             }
             
             previewRequestBuilder = builder
@@ -306,14 +356,17 @@ class Camera2Manager(
     }
     
     private fun applyZoomSetting(builder: CaptureRequest.Builder) {
+        // Enforce minimum zoom ratio of 1.0f to lock out the 0.5x ultrawide lens
+        val zoom = currentZoomRatio.coerceIn(1.0f, 10.0f)
+        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            builder.set(CaptureRequest.CONTROL_ZOOM_RATIO, currentZoomRatio)
+            builder.set(CaptureRequest.CONTROL_ZOOM_RATIO, zoom)
         } else {
             val chars = activeCharacteristics ?: return
             val sensorRect = chars.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE) ?: return
             
-            val cropW = (sensorRect.width() / currentZoomRatio).toInt()
-            val cropH = (sensorRect.height() / currentZoomRatio).toInt()
+            val cropW = (sensorRect.width() / zoom).toInt()
+            val cropH = (sensorRect.height() / zoom).toInt()
             val cropX = (sensorRect.width() - cropW) / 2
             val cropY = (sensorRect.height() - cropH) / 2
             
@@ -415,6 +468,7 @@ class Camera2Manager(
 
 public data class CameraCapabilities(
     val cameraId: String,
+    val physicalCameraId: String?,
     val characteristics: CameraCharacteristics,
     val maxYuvWidth: Int,
     val maxYuvHeight: Int,
